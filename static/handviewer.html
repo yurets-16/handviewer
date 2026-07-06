@@ -202,7 +202,7 @@ function render(){
     <h2>Play</h2><div class="pl-body"></div></div>`;
 
   app.innerHTML=comp+panels+playbox+
-    `<div class="note">Four-colour suits · hover the makeable-tricks grid · the line shown is double-dummy optimal, not the table’s actual play</div>`;
+    `<div class="note">Four-colour suits · hover the makeable-tricks grid · the line shown is double-dummy optimal, not the table’s actual play<br>Keys — line: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>space</b> auto · play: <b>⌫</b> undo, <b>R</b> restart, <b>B</b> best line</div>`;
   document.getElementById("sub").innerHTML=(contract?fmtContract(contract):"")+(result?` ${result}`:"")+(decl?` by ${decl.toUpperCase()}`:"");
   const back=document.getElementById("back"), b=q.get("back");
   if(b){ back.href=b; back.style.display=""; }
@@ -436,6 +436,27 @@ async function ipBestLine(){
 }
 document.addEventListener('click',e=>{ if(PLAYMODE!=='ip'||!IP||IP.solving) return;
   const el=e.target.closest('.card.legal'); if(el) ipPlay(el.getAttribute('data-c').slice(1)); });
+// keyboard: DD-line ← → step, ↓ trick, ↑/Home restart, space auto · interactive backspace undo,
+// R restart, B best line. Only while the play panel is up; clicks the same (visible, enabled) button.
+document.addEventListener('keydown',e=>{
+  if(e.ctrlKey||e.metaKey||e.altKey) return;
+  if(/^(input|textarea|select)$/i.test(e.target.tagName||'')) return;
+  const box=document.getElementById('playbox');
+  if(!box||box.style.display==='none') return;
+  const hit=id=>{ const b=document.getElementById(id);
+    if(b&&!b.disabled&&b.offsetParent!==null){ b.click(); return true; } return false; };
+  let ok=false;
+  if(PLAYMODE==='dd'){
+    if(e.key==='ArrowRight') ok=hit('pn'); else if(e.key==='ArrowLeft') ok=hit('pp');
+    else if(e.key==='ArrowDown') ok=hit('pt'); else if(e.key==='ArrowUp'||e.key==='Home') ok=hit('pf');
+    else if(e.key===' '||e.code==='Space') ok=hit('pa');
+  } else {
+    const k=e.key.toLowerCase();
+    if(e.key==='Backspace'||k==='u') ok=hit('ipu');
+    else if(k==='r') ok=hit('ipr'); else if(k==='b') ok=hit('ipbest');
+  }
+  if(ok) e.preventDefault();
+});
 render();
 </script>
 </body>
