@@ -19,14 +19,16 @@
     align-items:center;justify-items:center;background:linear-gradient(180deg,#123049,#0e2336);
     border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
   .seat{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:9px 12px;
-    width:100%;max-width:215px}
+    width:100%;max-width:215px;min-width:0}
   .seat.n{grid-column:2;grid-row:1} .seat.s{grid-column:2;grid-row:3}
   .seat.w{grid-column:1;grid-row:2} .seat.e{grid-column:3;grid-row:2}
   .seat .lbl{font-size:11px;color:var(--dim);letter-spacing:.04em;margin-bottom:3px;display:flex;
     justify-content:space-between;align-items:center}
   .seat.deal .lbl b{color:var(--gold)}
   .seat.onlead{outline:2px solid var(--accent);outline-offset:1px}
-  .suit{display:flex;gap:6px;font-size:15px;letter-spacing:.5px;white-space:nowrap;line-height:1.5}
+  /* long suit (up to 13 cards) must never widen the seat past its track and force a page scroll —
+     wrap the overflow cards onto a second line rather than overflowing. */
+  .suit{display:flex;flex-wrap:wrap;gap:2px 6px;font-size:15px;letter-spacing:.5px;line-height:1.5}
   .suit .s{width:14px;display:inline-block;text-align:center}
   .sp{color:var(--sp)} .he{color:var(--he)} .di{color:var(--di)} .cl{color:var(--cl)}
   .card{padding:0 1px;border-radius:3px}
