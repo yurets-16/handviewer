@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hand viewer &middot; neobridge</title>
+<style>
+  :root{ --panel:#182234; --line:#2a3852; --ink:#e7eef7; --dim:#8ea0bd; --accent:#5ee0a0;
+    --sp:#e9eef7; --he:#ff6b6b; --di:#ffab5e; --cl:#5fd39a; --gold:#E5B17C; }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#1b2740,#0f1622);color:var(--ink);
+    font:14px/1.45 -apple-system,Segoe UI,Roboto,Arial,sans-serif;min-height:100vh}
+  a{color:#7fd0ff;text-decoration:none} a:hover{text-decoration:underline}
+  .top{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line)}
+  .top h1{font-size:15px;margin:0;font-weight:600;color:#fff}
+  .top .sub{color:var(--dim);font-size:12px}
+  .wrap{max-width:660px;margin:0 auto;padding:18px 14px 44px}
+  .table{display:grid;grid-template-columns:1fr 1.1fr 1fr;grid-template-rows:auto auto auto;gap:10px;
+    align-items:center;justify-items:center;background:linear-gradient(180deg,#123049,#0e2336);
+    border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+  .seat{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:9px 12px;
+    width:100%;max-width:215px}
+  .seat.n{grid-column:2;grid-row:1} .seat.s{grid-column:2;grid-row:3}
+  .seat.w{grid-column:1;grid-row:2} .seat.e{grid-column:3;grid-row:2}
+  .seat .lbl{font-size:11px;color:var(--dim);letter-spacing:.04em;margin-bottom:3px;display:flex;
+    justify-content:space-between;align-items:center}
+  .seat.deal .lbl b{color:var(--gold)}
+  .seat.onlead{outline:2px solid var(--accent);outline-offset:1px}
+  .suit{display:flex;gap:6px;font-size:15px;letter-spacing:.5px;white-space:nowrap;line-height:1.5}
+  .suit .s{width:14px;display:inline-block;text-align:center}
+  .sp{color:var(--sp)} .he{color:var(--he)} .di{color:var(--di)} .cl{color:var(--cl)}
+  .card{padding:0 1px;border-radius:3px}
+  .card.played{opacity:.2;text-decoration:line-through}
+  .card.now{background:var(--accent);color:#08331f;font-weight:700;text-decoration:none;opacity:1}
+  .mid{grid-column:2;grid-row:2;text-align:center;background:#0a1826;border:1px solid var(--line);
+    border-radius:10px;padding:8px 10px;min-width:98px}
+  .mid .dlr{font-size:11px;color:var(--dim)} .mid .ct{font-size:19px;font-weight:700;margin-top:3px}
+  .vred{color:#ff7a7a!important}
+  .panels{display:flex;flex-wrap:wrap;gap:14px;margin-top:16px}
+  .box{flex:1 1 250px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .box h2{margin:0 0 9px;font-size:11px;letter-spacing:.06em;color:var(--dim);text-transform:uppercase;font-weight:600}
+  table{border-collapse:collapse;width:100%}
+  .auc th{color:var(--dim);font-weight:600;font-size:11px;padding:2px 4px;border-bottom:1px solid var(--line)}
+  .auc td{text-align:center;padding:4px;font-size:14px}
+  .call.pass{color:var(--dim)} .call.dbl{color:#ff9d5e;font-weight:700}
+  .dd th,.dd td{text-align:center;padding:3px 7px;font-size:13px;border:1px solid var(--line)}
+  .dd th{color:var(--dim);font-weight:600}
+  .dd td{cursor:pointer} .dd td.make{color:var(--accent);font-weight:700}
+  .dd td.lo{color:#5a6a80} .dd td:hover{background:#22334d}
+  .par{margin-top:9px;font-size:13px;color:var(--dim)} .par b{color:var(--ink)}
+  .play{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .play button{background:#0d1c2e;border:1px solid var(--line);color:var(--ink);border-radius:8px;
+    padding:7px 12px;font-size:14px;cursor:pointer;min-width:40px} .play button:hover{border-color:var(--accent)}
+  .play button:disabled{opacity:.35;cursor:default}
+  .play .tk{color:var(--dim);font-size:12px;margin-left:auto}
+  .trick{display:flex;gap:7px;align-items:center;min-height:30px;margin-top:9px;flex-wrap:wrap}
+  .trick .pc{background:#0a1826;border:1px solid var(--line);border-radius:7px;padding:3px 8px;font-size:15px}
+  .trick .pc .who{color:var(--dim);font-size:10px;margin-right:5px}
+  .empty{color:var(--dim);text-align:center;padding:50px 10px}
+  .note{color:#66788f;font-size:11px;margin-top:18px;text-align:center}
+</style>
+</head>
+<body>
+<div class="top"><h1>Hand viewer</h1><span class="sub" id="sub"></span>
+  <a id="back" href="#" style="margin-left:auto;display:none">&larr; back</a></div>
+<div class="wrap"><div id="app"><div class="empty">No deal in the link.</div></div></div>
+<script>
+const SUIT={s:{sym:"♠",c:"sp"},h:{sym:"♥",c:"he"},d:{sym:"♦",c:"di"},c:{sym:"♣",c:"cl"}};
+const ORDER="shdc";
+const RANKV={A:14,K:13,Q:12,J:11,T:10,"9":9,"8":8,"7":7,"6":6,"5":5,"4":4,"3":3,"2":2};
+const NEXT={n:"e",e:"s",s:"w",w:"n"};
+const NM={n:"North",e:"East",s:"South",w:"West"};
+const q=new URLSearchParams(location.search);
+
+function parseHand(str){ const out={s:"",h:"",d:"",c:""}; let cur=null;
+  for(const ch of (str||"")){ const l=ch.toLowerCase();
+    if(l==="s"||l==="h"||l==="d"||l==="c") cur=l; else if(cur) out[cur]+=ch.toUpperCase(); }
+  return out; }
+function suitSym(ch){ const l=ch.toLowerCase(); return SUIT[l]?`<span class="${SUIT[l].c}">${SUIT[l].sym}</span>`:ch; }
+function handHTML(h, seat){ return ORDER.split("").map(su=>{
+    const cards=(h[su]||"").split("").map(r=>`<span class="card" data-c="${seat}${su}${r}">${r==="T"?"10":r}</span>`).join("");
+    return `<div class="suit ${SUIT[su].c}"><span class="s">${SUIT[su].sym}</span>${cards||'<span style="color:#556">—</span>'}</div>`;
+  }).join(""); }
+function fmtContract(c){ const m=(c||"").match(/^(\d)(NT|[shdc])(x{0,2})/i); if(!m) return c||"";
+  const dbl=m[3]?` <span style="color:#ff9d5e">${m[3].toUpperCase()}</span>`:"";
+  return `${m[1]}${m[2].toUpperCase()==="NT"?"NT":suitSym(m[2])}${dbl}`; }
+function fmtContractPlain(c){ return (c||"").replace(/[shdc]/gi,m=>({s:"♠",h:"♥",d:"♦",c:"♣"}[m.toLowerCase()])); }
+function fmtPar(par){ const m=(par||"").match(/^(\d)(NT|[shdc])[nesw]?(.*)$/i); if(!m) return par||"";
+  return `${m[1]}${m[2].toUpperCase()==="NT"?"NT":suitSym(m[2])}${m[3]||""}`; }
+
+function auctionHTML(a, dealer){
+  const calls=a.split(/[-,]/).filter(x=>x!==""); const cols=["w","n","e","s"];
+  const head="<tr>"+cols.map(c=>`<th>${NM[c][0]}</th>`).join("")+"</tr>";
+  const cells=[]; for(let i=0;i<cols.indexOf(dealer);i++) cells.push('<td style="color:#3a4a63">·</td>');
+  for(const c of calls) cells.push(`<td>${fmtCall(c)}</td>`);
+  while(cells.length%4) cells.push("<td></td>");
+  let rows=""; for(let i=0;i<cells.length;i+=4) rows+="<tr>"+cells.slice(i,i+4).join("")+"</tr>";
+  return `<table class="auc">${head}${rows}</table>`; }
+function fmtCall(c){ const u=c.toUpperCase();
+  if(u==="P"||u==="PASS") return '<span class="call pass">Pass</span>';
+  if(u==="X") return '<span class="call dbl">X</span>';
+  if(u==="XX") return '<span class="call dbl">XX</span>';
+  const m=c.match(/^(\d)(NT|[shdc])$/i);
+  return m?`${m[1]}${m[2].toUpperCase()==="NT"?"NT":suitSym(m[2])}`:u; }
+
+function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","e","s","w"];
+  let g=`<table class="dd"><tr><th></th>${strains.map(s=>`<th>${s==="NT"?"NT":suitSym(s)}</th>`).join("")}</tr>`;
+  seats.forEach((se,si)=>{ g+=`<tr><th>${se.toUpperCase()}</th>`;
+    strains.forEach((st,ti)=>{ const t=parseInt(dd[si*5+ti],36);
+      g+=`<td class="${t>=7?'make':'lo'}">${isNaN(t)?"":t}</td>`; });
+    g+="</tr>"; });
+  return g+"</table>"; }
+
+// ---- double-dummy play line (#4) ----
+let SEQ=null, POS=0;
+function buildSeq(){ const p=q.get("p"); if(!p) return null;
+  const cards=p.split(/[ ,]+/).filter(Boolean);
+  const decl=(q.get("dl")||"s").toLowerCase(); let cur=NEXT[decl];
+  const tm=(q.get("c")||"NT").match(/(NT|[shdc])/i); const trump=tm?tm[1].toUpperCase():"NT";
+  const seq=[]; let trick=[];
+  for(const card of cards){ seq.push({card,who:cur}); trick.push({card,who:cur});
+    if(trick.length===4){ cur=winner(trick,trump); trick=[]; } else cur=NEXT[cur]; }
+  return seq; }
+function winner(trick, trump){ const led=trick[0].card[0].toLowerCase(), tr=trump.toLowerCase();
+  const v=card=>{ const su=card[0].toLowerCase(), r=RANKV[card.slice(1).toUpperCase()]||0;
+    return su===tr?200+r:(su===led?100+r:r); };
+  let best=trick[0]; for(const t of trick) if(v(t.card)>v(best.card)) best=t; return best.who; }
+function cardEl(card, who){ return document.querySelector(`.card[data-c="${who}${card.toLowerCase()}"]`); }
+function cardHTML(card){ const su=card[0].toLowerCase(), r=card.slice(1); return `${suitSym(su)}${r==="T"?"10":r}`; }
+
+function render(){
+  const app=document.getElementById("app");
+  if(!["n","e","s","w"].some(s=>q.get(s))) return;
+  const hands={}; ["n","e","s","w"].forEach(s=>hands[s]=parseHand(q.get(s)));
+  const dealer=(q.get("d")||"n").toLowerCase(), vul=(q.get("v")||"-").toLowerCase();
+  const contract=q.get("c")||"", result=q.get("r")||"";
+  const decl=(q.get("dl")||"").toLowerCase(), leader=decl?NEXT[decl]:"";
+  const vt={"-":"None",n:"N-S",e:"E-W",b:"All"}[vul]||"None";
+  const isVul=s=>(vul==="b")||(vul==="n"&&(s==="n"||s==="s"))||(vul==="e"&&(s==="e"||s==="w"));
+
+  let comp=`<div class="table">`;
+  for(const s of ["n","w","e","s"]){ const dl=s===dealer, ld=s===leader;
+    comp+=`<div class="seat ${s} ${dl?'deal':''} ${ld?'onlead':''}">
+      <div class="lbl"><b class="${isVul(s)?'vred':''}">${NM[s]}</b>
+        <span>${dl?'Dealer':''}${ld?' ◆ on lead':''}</span></div>
+      <div class="hand">${handHTML(hands[s], s)}</div></div>`; }
+  comp+=`<div class="mid"><div class="dlr">Dlr ${NM[dealer][0]} · Vul ${vt}</div>
+    ${contract?`<div class="ct">${fmtContract(contract)}${result?` <span style="font-size:13px;color:#8ea0bd">${result}</span>`:""}</div>`:""}</div></div>`;
+
+  let panels=`<div class="panels">`;
+  const auc=q.get("a"); if(auc) panels+=`<div class="box"><h2>Auction</h2>${auctionHTML(auc,dealer)}</div>`;
+  const dd=q.get("dd"); const par=q.get("par");
+  if(dd) panels+=`<div class="box"><h2>Double-dummy — makeable tricks</h2>${ddHTML(dd)}${par?`<div class="par">Par: <b>${fmtPar(par)}</b></div>`:""}</div>`;
+  panels+=`</div>`;
+
+  SEQ=buildSeq();
+  const playbox = SEQ?`<div class="box" style="margin-top:14px"><h2>Double-dummy line</h2>
+    <div class="play"><button id="pf" title="restart">⏮</button><button id="pp">◀</button>
+      <button id="pn">▶</button><button id="pt">trick ▶▶</button>
+      <button id="pa">▶ auto</button><span class="tk" id="ptk"></span></div>
+    <div class="trick" id="ptv"></div></div>`:"";
+
+  app.innerHTML=comp+panels+playbox+
+    `<div class="note">Four-colour suits · hover the makeable-tricks grid · the line shown is double-dummy optimal, not the table’s actual play</div>`;
+  document.getElementById("sub").innerHTML=(contract?fmtContract(contract):"")+(result?` ${result}`:"")+(decl?` by ${decl.toUpperCase()}`:"");
+  const back=document.getElementById("back"), b=q.get("back");
+  if(b){ back.href=b; back.style.display=""; }
+  if(SEQ) wirePlay();
+}
+
+function wirePlay(){
+  const paint=()=>{
+    document.querySelectorAll('.card').forEach(c=>c.classList.remove('played','now'));
+    for(let i=0;i<POS;i++){ const el=cardEl(SEQ[i].card,SEQ[i].who); if(el) el.classList.add(i===POS-1?'now':'played'); }
+    const ts=POS?Math.floor((POS-1)/4)*4:0;
+    document.getElementById('ptv').innerHTML=SEQ.slice(ts,POS).map(x=>
+      `<span class="pc"><span class="who">${x.who.toUpperCase()}</span>${cardHTML(x.card)}</span>`).join("");
+    document.getElementById('ptk').textContent=`card ${POS}/${SEQ.length} · trick ${Math.max(1,Math.ceil(POS/4))}/${Math.ceil(SEQ.length/4)}`;
+    document.getElementById('pp').disabled=POS===0; document.getElementById('pf').disabled=POS===0;
+    document.getElementById('pn').disabled=POS>=SEQ.length; document.getElementById('pt').disabled=POS>=SEQ.length;
+  };
+  const step=n=>{ POS=Math.max(0,Math.min(SEQ.length,POS+n)); paint(); };
+  let auto=null;
+  document.getElementById('pn').onclick=()=>step(1);
+  document.getElementById('pp').onclick=()=>step(-1);
+  document.getElementById('pf').onclick=()=>{POS=0;paint();};
+  document.getElementById('pt').onclick=()=>step(Math.min(SEQ.length,(Math.floor(POS/4)+1)*4)-POS);
+  document.getElementById('pa').onclick=function(){
+    if(auto){clearInterval(auto);auto=null;this.textContent="▶ auto";return;}
+    this.textContent="⏸ pause";
+    auto=setInterval(()=>{ if(POS>=SEQ.length){clearInterval(auto);auto=null;document.getElementById('pa').textContent="▶ auto";return;} step(1); },750);
+  };
+  POS=0; paint();
+}
+render();
+</script>
+</body>
+</html>
