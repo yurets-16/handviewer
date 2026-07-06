@@ -19,11 +19,16 @@ Request:  GET /ddline?n=<hand>&e=&s=&w=&c=<contract>&dl=<declarer>&l=<lead>
   dl a seat letter, l the opening lead "c9" (optional).
 Response: {"p": ["c7","cA",...], "strain": "H", "declarer": "E", "lead": "C9"}   (p=[] if unsolvable)
 """
-import os, sys, re, json, argparse
+import os, sys, re, json, argparse, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ddline
+
+# endplay's DDS engine is NOT thread-safe — concurrent solve_board calls corrupt its shared state
+# and abort the whole process. ThreadingHTTPServer serves requests in parallel, so serialise the
+# actual double-dummy work behind one lock. Each call is milliseconds, so throughput is unaffected.
+_DDS_LOCK = threading.Lock()
 
 
 def _parse_hand(s):
@@ -54,6 +59,8 @@ def compute(qs):
     # opening-lead position) distinguishable from a line request.
     if "played" in qs:
         prefix = [c for c in one("played").lower().split(",") if c]
+        if one("line"):                                    # DD-optimal continuation from this position
+            return {"p": ddline.dd_line_from(hands, strain, decl, prefix)}
         return ddline.dd_eval(hands, strain, decl, prefix) or {"cards": {}}
     lead = one("l").upper()
     line = ddline.line_for(hands, strain, decl, lead or None)
@@ -79,7 +86,8 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         if u.path.rstrip("/").endswith("ddline") or u.path in ("", "/"):
             try:
-                obj = compute(parse_qs(u.query, keep_blank_values=True))
+                with _DDS_LOCK:
+                    obj = compute(parse_qs(u.query, keep_blank_values=True))
                 self._send(200, obj, cacheable=bool(obj.get("p") or obj.get("cards")))
             except Exception as e:                          # never 500 the viewer into a broken state
                 self._send(200, {"p": [], "error": str(e)}, cacheable=False)

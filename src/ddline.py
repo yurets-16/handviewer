@@ -44,26 +44,43 @@ def _card_key(card):
 
 _SEATS_PL = (("N", "north"), ("E", "east"), ("S", "south"), ("W", "west"))
 
-def dd_eval(hands, strain, declarer, played):
-    """Double-dummy evaluation at the position reached after `played` (lower-case keys like
-    'c2','ht', in play order). For the player now on turn, the DD tricks their side can still take
-    with each of their legal cards — the caller turns that into 'declarer makes N from here' and the
-    cost of an off-best card. -> {"turn","side","best","cards":{key:tricks}} or None."""
+def _replay_prefix(d, played):
+    """Play the cards in `played` (lower-case keys, in order) onto deal d. False if a key isn't a
+    card available to whoever is on turn there (prefix inconsistent with the deal)."""
+    for k in (played or []):
+        card = None
+        for _lbl, nm in _SEATS_PL:                        # the card is unique — find whichever hand
+            card = next((c for c in d[getattr(Player, nm)] if _card_key(c) == k), None)
+            if card:
+                break
+        if card is None:
+            return False
+        d.play(card)
+    return True
+
+def _pos_deal(hands, strain, declarer, played):
+    """A Deal set to trump + opening leader with `played` already applied. None if unusable/illegal."""
     if not HAVE_DDS or not hands or strain not in _STRAIN or declarer not in _LHO:
         return None
     try:
         d = Deal(_pbn(hands))
         d.trump = getattr(Denom, _STRAIN[strain])
         d.first = getattr(Player, _PLR[_LHO[declarer]])   # opening leader = declarer's LHO
-        for k in (played or []):
-            card = None
-            for _lbl, nm in _SEATS_PL:                    # the card is unique — find whichever hand
-                card = next((c for c in d[getattr(Player, nm)] if _card_key(c) == k), None)
-                if card:
-                    break
-            if card is None:
-                return None                               # prefix not consistent with this deal
-            d.play(card)
+        return d if _replay_prefix(d, played) else None
+    except Exception:
+        return None
+
+def dd_eval(hands, strain, declarer, played):
+    """Double-dummy evaluation at the position reached after `played` (lower-case keys like
+    'c2','ht', in play order). For the player now on turn, the DD tricks their side can still take
+    with each of their legal cards — the caller turns that into 'declarer makes N from here' and the
+    cost of an off-best card. -> {"turn","side","best","cards":{key:tricks}} or None."""
+    if played and len(played) >= 52:                      # nothing left — never solve an empty deal
+        return None                                       # (an empty board aborts the DDS engine)
+    d = _pos_deal(hands, strain, declarer, played)
+    if d is None:
+        return None
+    try:
         turn = ["N", "E", "S", "W"][int(d.curplayer)]     # curplayer accounts for the partial trick
         cards = {_card_key(c): t for c, t in solve_board(d)}
         if not cards:
@@ -72,6 +89,26 @@ def dd_eval(hands, strain, declarer, played):
                 "best": max(cards.values()), "cards": cards}
     except Exception:
         return None
+
+def dd_line_from(hands, strain, declarer, played):
+    """The double-dummy optimal continuation (lower-case keys) from the position after `played` to
+    the end of the hand — every seat playing its own side's best. [] if unusable (the prefix must be
+    a legal play sequence)."""
+    d = _pos_deal(hands, strain, declarer, played)
+    if d is None:
+        return []
+    try:
+        seq = []
+        while len(seq) < 52 - len(played or []):
+            pairs = list(solve_board(d))
+            if not pairs:
+                break
+            pick = max(pairs, key=lambda ct: ct[1])[0]
+            d.play(pick)
+            seq.append(_card_key(pick))
+        return seq
+    except Exception:
+        return []
 
 
 def dd_play_line(hands, strain, declarer, lead=None):

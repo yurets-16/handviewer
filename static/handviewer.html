@@ -277,6 +277,7 @@ const IP_CONTROLS=`<div class="iptr"><span class="trl">You play</span>
     <button class="tr" data-you="def" title="you play both defenders; the double-dummy declares">defence</button>
     <button class="tr" id="trhide" title="hide the hands the double-dummy plays (dummy stays shown)">hide DD hands</button></div>
   <div class="play"><button id="ipu">↶ undo</button><button id="ipr">⟲ restart</button>
+    <button id="ipbest" title="play out the double-dummy-optimal line from here to the end">best line ▶</button>
     <button id="ddonce" title="show the double-dummy result of every card in the hand on turn, once">show DDS</button>
     <button id="ddauto" title="keep the DDS of the hand on turn shown every trick, until turned off">auto DDS</button>
     <span class="tk" id="iptk"></span></div>
@@ -287,14 +288,14 @@ const IP_CONTROLS=`<div class="iptr"><span class="trl">You play</span>
 function clearBoard(){ document.querySelectorAll('.card').forEach(c=>c.classList.remove('played','now','legal'));
   document.querySelectorAll('.seat').forEach(s=>s.classList.remove('toplay'));
   document.querySelectorAll('.card .ddv').forEach(s=>s.remove()); }
-function ipInit(){ IP={rem:{},trick:[],seq:[],leader:LEADER0,turn:LEADER0,ns:0,ew:0,hist:[],done:false,eval:null,curOpt:null,prevOpt:null,moveBy:null,lastMsg:""};
+function ipInit(){ IP={rem:{},trick:[],seq:[],leader:LEADER0,turn:LEADER0,ns:0,ew:0,hist:[],done:false,eval:null,curOpt:null,prevOpt:null,moveBy:null,lastMsg:"",solving:false};
   for(const s of ["n","e","s","w"]){ IP.rem[s]=new Set();
     for(const su of "shdc") for(const r of (HANDS[s][su]||"")) IP.rem[s].add(su+r.toLowerCase()); } }
 function ipSnap(){ return {rem:{n:[...IP.rem.n],e:[...IP.rem.e],s:[...IP.rem.s],w:[...IP.rem.w]},
   trick:IP.trick.map(t=>({...t})),seq:[...IP.seq],leader:IP.leader,turn:IP.turn,ns:IP.ns,ew:IP.ew,done:IP.done}; }
 function ipRestore(s){ IP.rem={n:new Set(s.rem.n),e:new Set(s.rem.e),s:new Set(s.rem.s),w:new Set(s.rem.w)};
   IP.trick=s.trick.map(t=>({...t}));IP.seq=[...s.seq];IP.leader=s.leader;IP.turn=s.turn;IP.ns=s.ns;IP.ew=s.ew;
-  IP.done=s.done;IP.eval=null;IP.curOpt=null;IP.prevOpt=null;IP.moveBy=null;IP.lastMsg=""; }
+  IP.done=s.done;IP.eval=null;IP.curOpt=null;IP.prevOpt=null;IP.moveBy=null;IP.lastMsg="";IP.solving=false;clearTimeout(autoTimer); }
 function ipLegal(seat,key,trick){ if(!IP.rem[seat].has(key)) return false;
   if(!trick.length) return true; const led=trick[0].card[0]; if(key[0]===led) return true;
   for(const k of IP.rem[seat]) if(k[0]===led) return false; return true; }   // void in led suit -> anything
@@ -330,7 +331,7 @@ function ipPaint(){ clearBoard(); clearTimeout(autoTimer);
   const tk=document.getElementById('iptk');
   if(IP.done){ const d=dt-need; tk.textContent=`Done · declarer ${dt} tricks (${d===0?"=":(d>0?"+"+d:d)}), needed ${need}`; }
   else tk.textContent=`${NM[IP.turn]} to play · declarer ${dt}, needs ${need} · NS ${IP.ns}–EW ${IP.ew}`;
-  const u=document.getElementById('ipu'); if(u) u.disabled=IP.hist.length===0;
+  const u=document.getElementById('ipu'); if(u) u.disabled=IP.hist.length===0; ipSyncSolve();
   const fb=document.getElementById('ipfb'); if(fb) fb.textContent=IP.lastMsg||"";
   const dd0=document.getElementById('ipdd');
   if(IP.curOpt!=null) ipShowEval(); else if(dd0) dd0.innerHTML="";
@@ -371,7 +372,7 @@ function ipShowEval(){ const dd=document.getElementById('ipdd'); if(!dd||IP.curO
   dd.innerHTML=`Double-dummy from here: declarer makes <b>${IP.curOpt}</b> (${df===0?"=":(df>0?"+"+df:df)})`; }
 async function ipFetchEval(){
   const api=q.get("api"), dd=document.getElementById('ipdd');
-  if(!dd) return;
+  if(!dd||IP.solving) return;                              // during a best-line play-out, don't churn evals
   if(!api||IP.done){ dd.innerHTML=""; return; }
   const forLen=IP.seq.length, tok=++ipEvalTok;
   if(IP.curOpt==null) dd.innerHTML='<span class="ipdim">computing double-dummy…</span>';
@@ -388,7 +389,7 @@ async function ipFetchEval(){
       IP.lastMsg = cost>0 ? `▲ ${NM[IP.moveBy]} gave up ${cost} trick${cost>1?"s":""} vs. double-dummy` : "";
       IP.moveBy=null; const fb=document.getElementById('ipfb'); if(fb) fb.textContent=IP.lastMsg; }
     IP.curOpt=opt; ipShowEval(); ipRenderDDV();
-    if(isAuto(IP.turn)&&!IP.done){                          // this seat is the DD's — it plays after a beat
+    if(isAuto(IP.turn)&&!IP.done&&!IP.solving){             // this seat is the DD's — it plays after a beat
       const forLen=IP.seq.length; clearTimeout(autoTimer);
       autoTimer=setTimeout(()=>{ if(IP.seq.length!==forLen||IP.done||!isAuto(IP.turn)||!IP.eval) return;
         const best=Object.keys(IP.eval.cards).find(k=>IP.eval.cards[k]===IP.eval.best);
@@ -396,19 +397,45 @@ async function ipFetchEval(){
   }catch(e){ if(tok===ipEvalTok&&IP.curOpt==null) dd.innerHTML=""; } }
 function wireInteractive(){ if(!IP) ipInit();
   document.getElementById('ipu').onclick=()=>{ if(IP.hist.length){ ipRestore(IP.hist.pop()); ipPaint(); } };
-  document.getElementById('ipr').onclick=()=>{ ddsOnce=false; ipInit(); ipPaint(); };
-  const bo=document.getElementById('ddonce'), ba=document.getElementById('ddauto'), api=q.get('api');
-  if(!api){ if(bo)bo.style.display='none'; if(ba)ba.style.display='none'; }        // DDS needs the eval API
+  document.getElementById('ipr').onclick=()=>{ ddsOnce=false; clearTimeout(autoTimer); ipInit(); ipPaint(); };
+  const bo=document.getElementById('ddonce'), ba=document.getElementById('ddauto'), bl=document.getElementById('ipbest'), api=q.get('api');
+  if(!api){ [bo,ba,bl].forEach(x=>{ if(x) x.style.display='none'; }); }             // DDS + solver need the eval API
   else { bo.onclick=()=>{ ddsOnce=true; ipRenderDDV(); };
-    ba.onclick=()=>{ ddsAuto=!ddsAuto; ddsOnce=false; ipSyncDDSbtns(); ipRenderDDV(); }; }
-  document.querySelectorAll('.tr[data-you]').forEach(b=>b.onclick=()=>{ youPlay=b.dataset.you; ipSyncTrainer(); ipPaint(); });
+    ba.onclick=()=>{ ddsAuto=!ddsAuto; ddsOnce=false; ipSyncDDSbtns(); ipRenderDDV(); };
+    if(bl) bl.onclick=ipBestLine; }
+  document.querySelectorAll('.tr[data-you]').forEach(b=>b.onclick=()=>{ IP.solving=false; youPlay=b.dataset.you; ipSyncTrainer(); ipPaint(); });
   const th=document.getElementById('trhide'); if(th) th.onclick=()=>{ hideDD=!hideDD; ipSyncTrainer(); ipPaint(); };
   ipSyncTrainer(); ipSyncDDSbtns(); ipPaint(); }
 function ipSyncTrainer(){
   document.querySelectorAll('.tr[data-you]').forEach(b=>b.classList.toggle('on', b.dataset.you===youPlay));
   const th=document.getElementById('trhide'); if(th){ th.classList.toggle('on', hideDD); th.style.display=youPlay==='all'?'none':''; }
   const row=document.querySelector('.iptr'); if(row) row.style.display=q.get('api')?'':'none'; }   // trainer needs the eval API
-document.addEventListener('click',e=>{ if(PLAYMODE!=='ip'||!IP) return;
+function ipSyncSolve(){ const b=document.getElementById('ipbest'); if(!b) return;
+  b.textContent=IP.solving?'⏹ stop':'best line ▶'; b.classList.toggle('on', IP.solving);
+  b.disabled=IP.done&&!IP.solving; }
+// play out the DD-optimal line from the current position to the end (one API call for the whole
+// continuation, then animate it locally). Click again to stop; undo/restart/mode change also stop.
+async function ipBestLine(){
+  const api=q.get('api'); if(!api) return;
+  if(IP.solving){ IP.solving=false; clearTimeout(autoTimer); ipSyncSolve(); return; }
+  if(IP.done) return;
+  IP.solving=true; ipSyncSolve(); clearTimeout(autoTimer);
+  const forLen=IP.seq.length; let line=[];
+  try{
+    const u=new URL(api, location.href);
+    ["n","e","s","w","c","dl"].forEach(k=>{const v=q.get(k); if(v!==null) u.searchParams.set(k,v);});
+    u.searchParams.set("played", IP.seq.join(",")); u.searchParams.set("line","1");
+    const r=await fetch(u.toString()); line=(await r.json()).p||[];
+  }catch(e){}
+  if(!IP.solving||IP.seq.length!==forLen){ IP.solving=false; clearTimeout(autoTimer); ipSyncSolve(); return; }
+  let i=0;
+  const step=()=>{ if(!IP.solving||IP.done||i>=line.length){ IP.solving=false; ipSyncSolve(); return; }
+    ipPlay(line[i++]);
+    if(IP.solving&&!IP.done&&i<line.length) autoTimer=setTimeout(step, 430);
+    else { IP.solving=false; ipSyncSolve(); } };
+  step();
+}
+document.addEventListener('click',e=>{ if(PLAYMODE!=='ip'||!IP||IP.solving) return;
   const el=e.target.closest('.card.legal'); if(el) ipPlay(el.getAttribute('data-c').slice(1)); });
 render();
 </script>
