@@ -122,7 +122,6 @@ function handHTML(h, seat){ return ORDER.split("").map(su=>{
 function fmtContract(c){ const m=(c||"").match(/^(\d)(NT|[shdc])(x{0,2})/i); if(!m) return c||"";
   const dbl=m[3]?` <span style="color:#ff9d5e">${m[3].toUpperCase()}</span>`:"";
   return `${m[1]}${m[2].toUpperCase()==="NT"?"NT":suitSym(m[2])}${dbl}`; }
-function fmtContractPlain(c){ return (c||"").replace(/[shdc]/gi,m=>({s:"♠",h:"♥",d:"♦",c:"♣"}[m.toLowerCase()])); }
 function fmtPar(par){ const m=(par||"").match(/^(\d)(NT|[shdc])([nesw])?(.*)$/i); if(!m) return par||"";
   const strain=m[2].toUpperCase()==="NT"?"NT":suitSym(m[2]);
   const decl=m[3]?`&nbsp;<span class="pardecl">${m[3].toUpperCase()}</span>`:"";
