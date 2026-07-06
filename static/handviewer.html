@@ -13,6 +13,8 @@
   a{color:#7fd0ff;text-decoration:none} a:hover{text-decoration:underline}
   .top{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line)}
   .top h1{font-size:15px;margin:0;font-weight:600;color:#fff}
+  #rotate{background:#182234;border:1px solid var(--line);color:var(--ink);border-radius:8px;
+    width:30px;height:27px;cursor:pointer;font-size:15px;line-height:1} #rotate:hover{border-color:var(--accent)}
   .top .sub{color:var(--dim);font-size:12px}
   .wrap{max-width:660px;margin:0 auto;padding:18px 14px 44px}
   .table{display:grid;grid-template-columns:1fr 1.1fr 1fr;grid-template-rows:auto auto auto;gap:10px;
@@ -101,7 +103,8 @@
 </head>
 <body>
 <div class="top"><h1>Hand viewer</h1><span class="sub" id="sub"></span>
-  <a id="back" href="#" style="margin-left:auto;display:none">&larr; back</a></div>
+  <button id="rotate" title="rotate the table — put the next seat at the bottom" style="margin-left:auto;display:none">&#8635;</button>
+  <a id="back" href="#" style="display:none">&larr; back</a></div>
 <div class="wrap"><div id="app"><div class="empty">No deal in the link.</div></div></div>
 <script>
 const SUIT={s:{sym:"♠",c:"sp"},h:{sym:"♥",c:"he"},d:{sym:"♦",c:"di"},c:{sym:"♣",c:"cl"}};
@@ -156,6 +159,11 @@ function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","s","e","w
 // The line comes either baked into the link (p=...) or, lazily, from a small caching DD-line API
 // (api=... — computed once per board and cached, so it costs nothing to bake it into every link).
 let SEQ=null, POS=0, PLAYMODE="dd", IP=null, HANDS=null, DECL="", LEADER0="", TRUMP="NT";
+let bottomSeat="s"; const RHO={n:"w",w:"s",s:"e",e:"n"};   // rotate: which seat sits at the bottom
+function applyRotation(){                                   // place seats around the fixed centre
+  const B=bottomSeat, pos={[B]:[2,3],[NEXT[B]]:[1,2],[PARTNER[B]]:[2,1],[RHO[B]]:[3,2]};   // bot,left,top,right
+  for(const s of ["n","e","s","w"]){ const el=document.querySelector(".seat."+s);
+    if(el&&pos[s]){ el.style.gridColumn=pos[s][0]; el.style.gridRow=pos[s][1]; } } }
 function buildSeq(cards){ if(!cards||!cards.length) return null;
   const decl=(q.get("dl")||"s").toLowerCase(); let cur=NEXT[decl];
   const tm=(q.get("c")||"NT").match(/(NT|[shdc])/i); const trump=tm?tm[1].toUpperCase():"NT";
@@ -207,6 +215,9 @@ function render(){
   document.getElementById("sub").innerHTML=(contract?fmtContract(contract):"")+(result?` ${result}`:"")+(decl?` by ${decl.toUpperCase()}`:"");
   const back=document.getElementById("back"), b=q.get("back");
   if(b){ back.href=b; back.style.display=""; }
+  const rot=document.getElementById("rotate");
+  if(rot){ rot.style.display=""; rot.onclick=()=>{ bottomSeat=NEXT[bottomSeat]; applyRotation(); }; }
+  applyRotation();
   if(SEQ) showPlay(); else loadLine();
 }
 
