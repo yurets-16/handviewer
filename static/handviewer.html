@@ -39,6 +39,16 @@
   .mid{grid-column:2;grid-row:2;text-align:center;background:#0a1826;border:1px solid var(--line);
     border-radius:10px;padding:8px 10px;min-width:98px}
   .mid .dlr{font-size:11px;color:var(--dim)} .mid .ct{font-size:19px;font-weight:700;margin-top:3px}
+  /* current trick laid out on the "table": cards at each seat's direction, contract in the middle */
+  .tablecards{display:grid;grid-template-columns:1fr auto 1fr;grid-template-rows:auto auto auto;
+    align-items:center;justify-items:center;column-gap:5px;min-height:56px;margin-top:2px}
+  .tablecards .tc{min-width:14px;min-height:19px;font-size:15px;line-height:1;white-space:nowrap;
+    display:flex;align-items:center;justify-content:center}
+  .tc[data-pos="top"]{grid-column:2;grid-row:1} .tc[data-pos="bottom"]{grid-column:2;grid-row:3}
+  .tc[data-pos="left"]{grid-column:1;grid-row:2} .tc[data-pos="right"]{grid-column:3;grid-row:2}
+  .tablecards .ct{grid-column:2;grid-row:2;margin-top:0}
+  .tc.win{box-shadow:inset 0 -2px 0 var(--accent);border-radius:3px}
+  .rslt{font-size:13px;color:#8ea0bd;font-weight:400}
   .vred{color:#ff7a7a!important}
   .panels{display:flex;flex-wrap:wrap;gap:14px;margin-top:16px}
   .box{flex:1 1 250px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
@@ -189,6 +199,16 @@ function winner(trick, trump){ const led=trick[0].card[0].toLowerCase(), tr=trum
   let best=trick[0]; for(const t of trick) if(v(t.card)>v(best.card)) best=t; return best.who; }
 function cardEl(card, who){ return document.querySelector(`.card[data-c="${who}${card.toLowerCase()}"]`); }
 function cardHTML(card){ const su=card[0].toLowerCase(), r=card.slice(1).toUpperCase(); return `${suitSym(su)}${r==="T"?"10":r}`; }
+// the current trick laid out on the "table" (centre), each card at its player's seat direction
+// (following the rotation) — so plays stay visible even when the played hand is hidden face-down.
+function renderTableCards(trick, winSeat){
+  const box=document.querySelector(".tablecards"); if(!box) return;
+  const B=bottomSeat, pos={[B]:"bottom",[NEXT[B]]:"left",[PARTNER[B]]:"top",[RHO[B]]:"right"};
+  const slots={top:"",bottom:"",left:"",right:""};
+  for(const t of (trick||[])){ const p=pos[t.who]; if(p) slots[p]=cardHTML(t.card); }
+  const wp=winSeat?pos[winSeat]:null;
+  box.querySelectorAll(".tc").forEach(el=>{ const p=el.dataset.pos;
+    el.innerHTML=slots[p]||""; el.classList.toggle("win", p===wp && !!slots[p]); }); }
 
 function render(){
   const app=document.getElementById("app");
@@ -210,7 +230,13 @@ function render(){
         <span>${dl?'Dealer':''}${ld?'<span class="leadmark"> ◆ on lead</span>':''}</span></div>
       <div class="hand">${handHTML(hands[s], s)}</div></div>`; }
   comp+=`<div class="mid"><div class="dlr">Dlr ${NM[dealer][0]} · Vul ${vt}</div>
-    ${contract?`<div class="ct">${fmtContract(contract)}${result?` <span style="font-size:13px;color:#8ea0bd">${result}</span>`:""}</div>`:""}</div></div>`;
+    <div class="tablecards">
+      <span class="tc" data-pos="top"></span>
+      <span class="tc" data-pos="left"></span>
+      <span class="ct">${contract?`${fmtContract(contract)}${result?` <span class="rslt">${result}</span>`:""}`:""}</span>
+      <span class="tc" data-pos="right"></span>
+      <span class="tc" data-pos="bottom"></span>
+    </div></div></div>`;
 
   let panels=`<div class="panels">`;
   const auc=q.get("a"); if(auc) panels+=`<div class="box"><h2>Auction</h2>${auctionHTML(auc,dealer)}</div>`;
@@ -278,6 +304,7 @@ function wirePlay(){
     let win=-1; if(shown.length===4){ const w=winner(shown,TRUMP); win=shown.findIndex(x=>x.who===w); }
     document.getElementById('ptv').innerHTML=shown.map((x,i)=>
       `<span class="pc${i===win?' win':''}"><span class="who">${x.who.toUpperCase()}</span>${cardHTML(x.card)}</span>`).join("");
+    renderTableCards(shown, shown.length===4?winner(shown,TRUMP):null);
     document.getElementById('ptk').textContent=`card ${POS}/${SEQ.length} · trick ${Math.max(1,Math.ceil(POS/4))}/${Math.ceil(SEQ.length/4)}`;
     document.getElementById('pp').disabled=POS===0; document.getElementById('pf').disabled=POS===0;
     document.getElementById('pn').disabled=POS>=SEQ.length; document.getElementById('pt').disabled=POS>=SEQ.length;
@@ -357,6 +384,7 @@ function ipPaint(){ clearBoard(); clearTimeout(autoTimer);
   document.getElementById('iptv').innerHTML=IP.trick.map((t,i)=>
     `<span class="pc${i===iwin?' win':(i===IP.trick.length-1&&IP.trick.length<4?' lead':'')}"><span class="who">${t.who.toUpperCase()}</span>${cardHTML(t.card)}</span>`).join("");
   const th=document.getElementById('ipth'); if(th) th.innerHTML=ipHistoryHTML();
+  renderTableCards(IP.trick, IP.trick.length===4?winner(IP.trick,TRUMP):null);
   const declSide=(DECL==="n"||DECL==="s")?"ns":"ew", dt=declSide==="ns"?IP.ns:IP.ew;
   const need=6+(parseInt((q.get("c")||"1")[0])||1);
   const tk=document.getElementById('iptk');
