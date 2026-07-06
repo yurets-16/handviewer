@@ -55,6 +55,7 @@
     padding:7px 12px;font-size:14px;cursor:pointer;min-width:40px} .play button:hover{border-color:var(--accent)}
   .play button:disabled{opacity:.35;cursor:default}
   .play .tk{color:var(--dim);font-size:12px;margin-left:auto}
+  .pl-load{color:var(--dim);font-size:12.5px;padding:7px 2px}
   .trick{display:flex;gap:7px;align-items:center;min-height:30px;margin-top:9px;flex-wrap:wrap}
   .trick .pc{background:#0a1826;border:1px solid var(--line);border-radius:7px;padding:3px 8px;font-size:15px}
   .trick .pc .who{color:var(--dim);font-size:10px;margin-right:5px}
@@ -80,7 +81,7 @@ function parseHand(str){ const out={s:"",h:"",d:"",c:""}; let cur=null;
   return out; }
 function suitSym(ch){ const l=ch.toLowerCase(); return SUIT[l]?`<span class="${SUIT[l].c}">${SUIT[l].sym}</span>`:ch; }
 function handHTML(h, seat){ return ORDER.split("").map(su=>{
-    const cards=(h[su]||"").split("").map(r=>`<span class="card" data-c="${seat}${su}${r}">${r==="T"?"10":r}</span>`).join("");
+    const cards=(h[su]||"").split("").map(r=>`<span class="card" data-c="${seat}${su}${r.toLowerCase()}">${r==="T"?"10":r}</span>`).join("");
     return `<div class="suit ${SUIT[su].c}"><span class="s">${SUIT[su].sym}</span>${cards||'<span style="color:#556">—</span>'}</div>`;
   }).join(""); }
 function fmtContract(c){ const m=(c||"").match(/^(\d)(NT|[shdc])(x{0,2})/i); if(!m) return c||"";
@@ -114,9 +115,10 @@ function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","e","s","w
   return g+"</table>"; }
 
 // ---- double-dummy play line (#4) ----
+// The line comes either baked into the link (p=...) or, lazily, from a small caching DD-line API
+// (api=... — computed once per board and cached, so it costs nothing to bake it into every link).
 let SEQ=null, POS=0;
-function buildSeq(){ const p=q.get("p"); if(!p) return null;
-  const cards=p.split(/[ ,]+/).filter(Boolean);
+function buildSeq(cards){ if(!cards||!cards.length) return null;
   const decl=(q.get("dl")||"s").toLowerCase(); let cur=NEXT[decl];
   const tm=(q.get("c")||"NT").match(/(NT|[shdc])/i); const trump=tm?tm[1].toUpperCase():"NT";
   const seq=[]; let trick=[];
@@ -155,19 +157,41 @@ function render(){
   if(dd) panels+=`<div class="box"><h2>Double-dummy — makeable tricks</h2>${ddHTML(dd)}${par?`<div class="par">Par: <b>${fmtPar(par)}</b></div>`:""}</div>`;
   panels+=`</div>`;
 
-  SEQ=buildSeq();
-  const playbox = SEQ?`<div class="box" style="margin-top:14px"><h2>Double-dummy line</h2>
-    <div class="play"><button id="pf" title="restart">⏮</button><button id="pp">◀</button>
-      <button id="pn">▶</button><button id="pt">trick ▶▶</button>
-      <button id="pa">▶ auto</button><span class="tk" id="ptk"></span></div>
-    <div class="trick" id="ptv"></div></div>`:"";
+  SEQ=buildSeq((q.get("p")||"").split(/[ ,]+/).filter(Boolean));
+  const playbox=`<div class="box" id="playbox" style="margin-top:14px;display:none">
+    <h2>Double-dummy line</h2><div class="pl-body"></div></div>`;
 
   app.innerHTML=comp+panels+playbox+
     `<div class="note">Four-colour suits · hover the makeable-tricks grid · the line shown is double-dummy optimal, not the table’s actual play</div>`;
   document.getElementById("sub").innerHTML=(contract?fmtContract(contract):"")+(result?` ${result}`:"")+(decl?` by ${decl.toUpperCase()}`:"");
   const back=document.getElementById("back"), b=q.get("back");
   if(b){ back.href=b; back.style.display=""; }
-  if(SEQ) wirePlay();
+  if(SEQ) showPlay(); else loadLine();
+}
+
+const PLAY_CONTROLS=`<div class="play"><button id="pf" title="restart">⏮</button><button id="pp">◀</button>
+    <button id="pn">▶</button><button id="pt">trick ▶▶</button>
+    <button id="pa">▶ auto</button><span class="tk" id="ptk"></span></div>
+  <div class="trick" id="ptv"></div>`;
+function showPlay(){ const box=document.getElementById("playbox");
+  box.style.display=""; box.querySelector(".pl-body").innerHTML=PLAY_CONTROLS; wirePlay(); }
+
+// Lazily fetch the line from the caching DD-line API when it wasn't baked into the link. Silent
+// no-op without an api= (or with no contract to solve): the play box just stays hidden, and the
+// auction + makeable-tricks grid still stand on their own.
+async function loadLine(){
+  const api=q.get("api"), c=q.get("c"), dl=q.get("dl");
+  if(!api||!c||!dl) return;
+  const box=document.getElementById("playbox"), body=()=>box.querySelector(".pl-body");
+  box.style.display=""; body().innerHTML='<div class="pl-load">Computing the double-dummy line…</div>';
+  try{
+    const u=new URL(api, location.href);
+    ["n","e","s","w","c","dl","l"].forEach(k=>{const v=q.get(k); if(v!==null) u.searchParams.set(k,v);});
+    const r=await fetch(u.toString()); const j=await r.json();
+    const cards=(j&&j.p)||[];
+    if(cards.length){ SEQ=buildSeq(cards); showPlay(); }
+    else body().innerHTML='<div class="pl-load">Double-dummy line unavailable for this deal.</div>';
+  }catch(e){ body().innerHTML='<div class="pl-load">Couldn’t load the double-dummy line.</div>'; }
 }
 
 function wirePlay(){
