@@ -37,6 +37,42 @@ def _card_str(card):
     s = str(card)
     return _CARD_SUIT.get(s[:1], s[:1].lower()) + s[1:]
 
+def _card_key(card):
+    """Lower-case play key matching the viewer's interactive cards: '♣A' -> 'ca', '♥T' -> 'ht'."""
+    s = str(card)
+    return _CARD_SUIT.get(s[:1], s[:1].lower()) + s[1:].lower()
+
+_SEATS_PL = (("N", "north"), ("E", "east"), ("S", "south"), ("W", "west"))
+
+def dd_eval(hands, strain, declarer, played):
+    """Double-dummy evaluation at the position reached after `played` (lower-case keys like
+    'c2','ht', in play order). For the player now on turn, the DD tricks their side can still take
+    with each of their legal cards — the caller turns that into 'declarer makes N from here' and the
+    cost of an off-best card. -> {"turn","side","best","cards":{key:tricks}} or None."""
+    if not HAVE_DDS or not hands or strain not in _STRAIN or declarer not in _LHO:
+        return None
+    try:
+        d = Deal(_pbn(hands))
+        d.trump = getattr(Denom, _STRAIN[strain])
+        d.first = getattr(Player, _PLR[_LHO[declarer]])   # opening leader = declarer's LHO
+        for k in (played or []):
+            card = None
+            for _lbl, nm in _SEATS_PL:                    # the card is unique — find whichever hand
+                card = next((c for c in d[getattr(Player, nm)] if _card_key(c) == k), None)
+                if card:
+                    break
+            if card is None:
+                return None                               # prefix not consistent with this deal
+            d.play(card)
+        turn = ["N", "E", "S", "W"][int(d.curplayer)]     # curplayer accounts for the partial trick
+        cards = {_card_key(c): t for c, t in solve_board(d)}
+        if not cards:
+            return None
+        return {"turn": turn, "side": "ns" if turn in ("N", "S") else "ew",
+                "best": max(cards.values()), "cards": cards}
+    except Exception:
+        return None
+
 
 def dd_play_line(hands, strain, declarer, lead=None):
     """The double-dummy optimal line as a list of 52 cards ('c7','hA',...). Starts with `lead`

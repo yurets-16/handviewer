@@ -49,6 +49,12 @@ def compute(qs):
         return {"p": []}
     strain = "NT" if m.group(2).upper() == "NT" else m.group(2).upper()
     decl = one("dl").upper()[:1]
+    # `played` present (even empty) => a mid-play DD evaluation for the position after those cards;
+    # absent => the full opening-lead line (cached). keep_blank_values keeps an empty prefix (the
+    # opening-lead position) distinguishable from a line request.
+    if "played" in qs:
+        prefix = [c for c in one("played").lower().split(",") if c]
+        return ddline.dd_eval(hands, strain, decl, prefix) or {"cards": {}}
     lead = one("l").upper()
     line = ddline.line_for(hands, strain, decl, lead or None)
     return {"p": line, "strain": strain, "declarer": decl, "lead": lead}
@@ -73,8 +79,8 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         if u.path.rstrip("/").endswith("ddline") or u.path in ("", "/"):
             try:
-                obj = compute(parse_qs(u.query))
-                self._send(200, obj, cacheable=bool(obj.get("p")))
+                obj = compute(parse_qs(u.query, keep_blank_values=True))
+                self._send(200, obj, cacheable=bool(obj.get("p") or obj.get("cards")))
             except Exception as e:                          # never 500 the viewer into a broken state
                 self._send(200, {"p": [], "error": str(e)}, cacheable=False)
         else:
