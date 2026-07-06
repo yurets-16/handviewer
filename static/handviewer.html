@@ -82,6 +82,7 @@
   .play button.on{background:#123049;color:var(--ink);border-color:var(--accent)}
   .trick{display:flex;gap:7px;align-items:center;min-height:30px;margin-top:9px;flex-wrap:wrap}
   .trick .pc{background:#0a1826;border:1px solid var(--line);border-radius:7px;padding:3px 8px;font-size:15px}
+  .trick .pc.win{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:#0e2a1e}
   .trick .pc .who{color:var(--dim);font-size:10px;margin-right:5px}
   .empty{color:var(--dim);text-align:center;padding:50px 10px}
   .note{color:#66788f;font-size:11px;margin-top:18px;text-align:center}
@@ -248,9 +249,10 @@ function wirePlay(){
   const paint=()=>{
     document.querySelectorAll('.card').forEach(c=>c.classList.remove('played','now'));
     for(let i=0;i<POS;i++){ const el=cardEl(SEQ[i].card,SEQ[i].who); if(el) el.classList.add(i===POS-1?'now':'played'); }
-    const ts=POS?Math.floor((POS-1)/4)*4:0;
-    document.getElementById('ptv').innerHTML=SEQ.slice(ts,POS).map(x=>
-      `<span class="pc"><span class="who">${x.who.toUpperCase()}</span>${cardHTML(x.card)}</span>`).join("");
+    const ts=POS?Math.floor((POS-1)/4)*4:0, shown=SEQ.slice(ts,POS);
+    let win=-1; if(shown.length===4){ const w=winner(shown,TRUMP); win=shown.findIndex(x=>x.who===w); }
+    document.getElementById('ptv').innerHTML=shown.map((x,i)=>
+      `<span class="pc${i===win?' win':''}"><span class="who">${x.who.toUpperCase()}</span>${cardHTML(x.card)}</span>`).join("");
     document.getElementById('ptk').textContent=`card ${POS}/${SEQ.length} · trick ${Math.max(1,Math.ceil(POS/4))}/${Math.ceil(SEQ.length/4)}`;
     document.getElementById('pp').disabled=POS===0; document.getElementById('pf').disabled=POS===0;
     document.getElementById('pn').disabled=POS>=SEQ.length; document.getElementById('pt').disabled=POS>=SEQ.length;
@@ -323,8 +325,9 @@ function ipPaint(){ clearBoard(); clearTimeout(autoTimer);
   if(!IP.done){ const st=document.querySelector(`.seat.${IP.turn}`); if(st) st.classList.add('toplay');
     document.querySelectorAll(`.seat.${IP.turn} .card`).forEach(el=>{ const key=el.getAttribute('data-c').slice(1);
       if(IP.rem[IP.turn].has(key)&&ipLegal(IP.turn,key,eff)) el.classList.add('legal'); }); }
+  let iwin=-1; if(IP.trick.length===4){ const w=winner(IP.trick,TRUMP); iwin=IP.trick.findIndex(t=>t.who===w); }
   document.getElementById('iptv').innerHTML=IP.trick.map((t,i)=>
-    `<span class="pc${i===IP.trick.length-1&&IP.trick.length<4?' lead':''}"><span class="who">${t.who.toUpperCase()}</span>${cardHTML(t.card)}</span>`).join("");
+    `<span class="pc${i===iwin?' win':(i===IP.trick.length-1&&IP.trick.length<4?' lead':'')}"><span class="who">${t.who.toUpperCase()}</span>${cardHTML(t.card)}</span>`).join("");
   const declSide=(DECL==="n"||DECL==="s")?"ns":"ew", dt=declSide==="ns"?IP.ns:IP.ew;
   const need=6+(parseInt((q.get("c")||"1")[0])||1);
   const tk=document.getElementById('iptk');
