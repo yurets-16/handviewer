@@ -50,6 +50,7 @@
   .dd td{cursor:pointer} .dd td.make{color:var(--accent);font-weight:700}
   .dd td.lo{color:#5a6a80} .dd td:hover{background:#22334d}
   .par{margin-top:9px;font-size:13px;color:var(--dim)} .par b{color:var(--ink)}
+  .pardecl{color:var(--gold)}
   .play{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
   .play button{background:#0d1c2e;border:1px solid var(--line);color:var(--ink);border-radius:8px;
     padding:7px 12px;font-size:14px;cursor:pointer;min-width:40px} .play button:hover{border-color:var(--accent)}
@@ -88,8 +89,10 @@ function fmtContract(c){ const m=(c||"").match(/^(\d)(NT|[shdc])(x{0,2})/i); if(
   const dbl=m[3]?` <span style="color:#ff9d5e">${m[3].toUpperCase()}</span>`:"";
   return `${m[1]}${m[2].toUpperCase()==="NT"?"NT":suitSym(m[2])}${dbl}`; }
 function fmtContractPlain(c){ return (c||"").replace(/[shdc]/gi,m=>({s:"♠",h:"♥",d:"♦",c:"♣"}[m.toLowerCase()])); }
-function fmtPar(par){ const m=(par||"").match(/^(\d)(NT|[shdc])[nesw]?(.*)$/i); if(!m) return par||"";
-  return `${m[1]}${m[2].toUpperCase()==="NT"?"NT":suitSym(m[2])}${m[3]||""}`; }
+function fmtPar(par){ const m=(par||"").match(/^(\d)(NT|[shdc])([nesw])?(.*)$/i); if(!m) return par||"";
+  const strain=m[2].toUpperCase()==="NT"?"NT":suitSym(m[2]);
+  const decl=m[3]?`&nbsp;<span class="pardecl">${m[3].toUpperCase()}</span>`:"";
+  return `${m[1]}${strain}${decl}${m[4]||""}`; }
 
 function auctionHTML(a, dealer){
   const calls=a.split(/[-,]/).filter(x=>x!==""); const cols=["w","n","e","s"];
@@ -106,10 +109,11 @@ function fmtCall(c){ const u=c.toUpperCase();
   const m=c.match(/^(\d)(NT|[shdc])$/i);
   return m?`${m[1]}${m[2].toUpperCase()==="NT"?"NT":suitSym(m[2])}`:u; }
 
-function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","e","s","w"];
+function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","s","e","w"];
+  const IDX={n:0,e:1,s:2,w:3};   // dd is packed seat-major N,E,S,W — map each display row to its block
   let g=`<table class="dd"><tr><th></th>${strains.map(s=>`<th>${s==="NT"?"NT":suitSym(s)}</th>`).join("")}</tr>`;
-  seats.forEach((se,si)=>{ g+=`<tr><th>${se.toUpperCase()}</th>`;
-    strains.forEach((st,ti)=>{ const t=parseInt(dd[si*5+ti],36);
+  seats.forEach(se=>{ g+=`<tr><th>${se.toUpperCase()}</th>`;
+    strains.forEach((st,ti)=>{ const t=parseInt(dd[IDX[se]*5+ti],36);
       g+=`<td class="${t>=7?'make':'lo'}">${isNaN(t)?"":t}</td>`; });
     g+="</tr>"; });
   return g+"</table>"; }
