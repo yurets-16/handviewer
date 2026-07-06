@@ -71,6 +71,9 @@
   .ipdd{color:var(--dim);font-size:12.5px;margin-top:8px} .ipdd b{color:var(--accent)}
   .ipfb{color:#ffab5e;font-size:12px;margin-top:4px;min-height:15px}
   .ipdim{color:#5a6a80}
+  .ddv{font-size:8.5px;font-weight:700;color:#8695ab;margin-left:1px;vertical-align:super;line-height:0}
+  .ddv.best{color:var(--accent)}
+  .play button.on{background:#123049;color:var(--ink);border-color:var(--accent)}
   .trick{display:flex;gap:7px;align-items:center;min-height:30px;margin-top:9px;flex-wrap:wrap}
   .trick .pc{background:#0a1826;border:1px solid var(--line);border-radius:7px;padding:3px 8px;font-size:15px}
   .trick .pc .who{color:var(--dim);font-size:10px;margin-right:5px}
@@ -263,13 +266,16 @@ function wirePlay(){
 
 // ---- interactive play (#5): you choose every card for the hand on turn ----
 const IP_CONTROLS=`<div class="play"><button id="ipu">↶ undo</button><button id="ipr">⟲ restart</button>
+    <button id="ddonce" title="show the double-dummy result of every card in the hand on turn, once">show DDS</button>
+    <button id="ddauto" title="keep the DDS of the hand on turn shown every trick, until turned off">auto DDS</button>
     <span class="tk" id="iptk"></span></div>
   <div class="trick" id="iptv"></div>
   <div class="ipdd" id="ipdd"></div>
   <div class="ipfb" id="ipfb"></div>
-  <div class="ipmsg">Click a card in the highlighted hand — follow-suit is enforced and the lead passes to the trick winner.</div>`;
+  <div class="ipmsg">Click a card in the highlighted hand — follow-suit is enforced and the lead passes to the trick winner. The number on a card is the tricks declarer then makes double-dummy; green = best for the hand on turn.</div>`;
 function clearBoard(){ document.querySelectorAll('.card').forEach(c=>c.classList.remove('played','now','legal'));
-  document.querySelectorAll('.seat').forEach(s=>s.classList.remove('toplay')); }
+  document.querySelectorAll('.seat').forEach(s=>s.classList.remove('toplay'));
+  document.querySelectorAll('.card .ddv').forEach(s=>s.remove()); }
 function ipInit(){ IP={rem:{},trick:[],seq:[],leader:LEADER0,turn:LEADER0,ns:0,ew:0,hist:[],done:false,eval:null,curOpt:null,prevOpt:null,moveBy:null,lastMsg:""};
   for(const s of ["n","e","s","w"]){ IP.rem[s]=new Set();
     for(const su of "shdc") for(const r of (HANDS[s][su]||"")) IP.rem[s].add(su+r.toLowerCase()); } }
@@ -289,7 +295,7 @@ function ipPlay(key){ if(IP.done) return;
   IP.rem[seat].delete(key); IP.trick.push({card:key,who:seat}); IP.seq.push(key);
   // remember the optimal we're leaving; this card's cost = how far the optimal shifts once the DD
   // of the new position returns (works whether or not the pre-move eval had loaded yet)
-  IP.prevOpt=IP.curOpt; IP.moveBy=seat; IP.curOpt=null; IP.eval=null; IP.lastMsg="";
+  IP.prevOpt=IP.curOpt; IP.moveBy=seat; IP.curOpt=null; IP.eval=null; IP.lastMsg=""; ddsOnce=false;
   if(IP.trick.length===4){ const w=winner(IP.trick,TRUMP);
     if(w==="n"||w==="s") IP.ns++; else IP.ew++;
     IP.leader=w; IP.turn=w; if(IP.ns+IP.ew===13) IP.done=true; }
@@ -318,7 +324,17 @@ function ipPaint(){ clearBoard();
   ipFetchEval(); }
 // double-dummy from the current position (via the caching API): the optimal declarer total from
 // here, and — when you play an off-best card — how many tricks it just threw. Silent without api=.
-let ipEvalTok=0;
+let ipEvalTok=0, ddsAuto=false, ddsOnce=false;              // ddsAuto persists across restart; ddsOnce is per-hand
+function ipClearDDV(){ document.querySelectorAll('.card .ddv').forEach(s=>s.remove()); }
+function ipRenderDDV(){                                       // annotate the on-turn hand's legal cards
+  ipClearDDV();
+  if(!(ddsAuto||ddsOnce)||!IP||!IP.eval||IP.done) return;
+  document.querySelectorAll(`.seat.${IP.turn} .card.legal`).forEach(el=>{
+    const v=IP.eval.cards[el.getAttribute('data-c').slice(1)]; if(v==null) return;
+    const s=document.createElement('sup'); s.className='ddv'+(v===IP.eval.best?' best':'');
+    s.textContent=declTotal(v, IP.eval.side); el.appendChild(s); }); }
+function ipSyncDDSbtns(){ const a=document.getElementById('ddauto'); if(a) a.classList.toggle('on', ddsAuto);
+  const o=document.getElementById('ddonce'); if(o) o.disabled=ddsAuto; }
 function declTotal(sideTricks, side){                        // side's remaining DD tricks -> declarer total
   const declSide=(DECL==="n"||DECL==="s")?"ns":"ew", declWon=declSide==="ns"?IP.ns:IP.ew;
   const remaining=13-(IP.ns+IP.ew);
@@ -344,12 +360,16 @@ async function ipFetchEval(){
     if(IP.moveBy&&IP.prevOpt!=null){ const cost=Math.abs(opt-IP.prevOpt);   // shift in the optimal = what the card cost
       IP.lastMsg = cost>0 ? `▲ ${NM[IP.moveBy]} gave up ${cost} trick${cost>1?"s":""} vs. double-dummy` : "";
       IP.moveBy=null; const fb=document.getElementById('ipfb'); if(fb) fb.textContent=IP.lastMsg; }
-    IP.curOpt=opt; ipShowEval();
+    IP.curOpt=opt; ipShowEval(); ipRenderDDV();
   }catch(e){ if(tok===ipEvalTok&&IP.curOpt==null) dd.innerHTML=""; } }
 function wireInteractive(){ if(!IP) ipInit();
   document.getElementById('ipu').onclick=()=>{ if(IP.hist.length){ ipRestore(IP.hist.pop()); ipPaint(); } };
-  document.getElementById('ipr').onclick=()=>{ ipInit(); ipPaint(); };
-  ipPaint(); }
+  document.getElementById('ipr').onclick=()=>{ ddsOnce=false; ipInit(); ipPaint(); };
+  const bo=document.getElementById('ddonce'), ba=document.getElementById('ddauto'), api=q.get('api');
+  if(!api){ if(bo)bo.style.display='none'; if(ba)ba.style.display='none'; }        // DDS needs the eval API
+  else { bo.onclick=()=>{ ddsOnce=true; ipRenderDDV(); };
+    ba.onclick=()=>{ ddsAuto=!ddsAuto; ddsOnce=false; ipSyncDDSbtns(); ipRenderDDV(); }; }
+  ipSyncDDSbtns(); ipPaint(); }
 document.addEventListener('click',e=>{ if(PLAYMODE!=='ip'||!IP) return;
   const el=e.target.closest('.card.legal'); if(el) ipPlay(el.getAttribute('data-c').slice(1)); });
 render();
