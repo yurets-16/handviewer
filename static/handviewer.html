@@ -76,6 +76,17 @@
   .trick .pc .who{color:var(--dim);font-size:10px;margin-right:5px}
   .empty{color:var(--dim);text-align:center;padding:50px 10px}
   .note{color:#66788f;font-size:11px;margin-top:18px;text-align:center}
+  /* Vertical density pass — fit the whole viewer (compass + auction + DD + play panel) within one
+     1080p screen. Trims padding, gaps and line-heights only; nothing structural. */
+  body{line-height:1.4}
+  .top{padding:7px 18px} .wrap{padding:9px 14px 10px}
+  .table{gap:6px;padding:9px} .seat{padding:4px 11px} .seat .lbl{margin-bottom:1px}
+  .suit{gap:1px 6px;line-height:1.26;font-size:14px} .mid{padding:5px 10px} .mid .ct{font-size:17px;margin-top:1px}
+  .panels{gap:10px;margin-top:7px} .box{padding:7px 13px} .box h2{margin:0 0 5px}
+  .auc td{padding:2px 4px} .dd th,.dd td{padding:2px 7px} .par{margin-top:6px}
+  .play{gap:7px;margin-top:7px} .play button{padding:5px 11px} .pl-load{padding:5px 2px}
+  .pmode{margin-bottom:8px} .ipmsg{margin-top:6px} .ipdd{margin-top:6px}
+  .ipfb{margin-top:3px;min-height:14px} .trick{min-height:24px;margin-top:6px} .note{margin-top:9px}
 </style>
 </head>
 <body>
@@ -179,7 +190,7 @@ function render(){
   panels+=`</div>`;
 
   SEQ=buildSeq((q.get("p")||"").split(/[ ,]+/).filter(Boolean));
-  const playbox=`<div class="box" id="playbox" style="margin-top:14px;display:none">
+  const playbox=`<div class="box" id="playbox" style="margin-top:9px;display:none">
     <h2>Play</h2><div class="pl-body"></div></div>`;
 
   app.innerHTML=comp+panels+playbox+
