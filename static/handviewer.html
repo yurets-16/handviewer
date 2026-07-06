@@ -57,6 +57,17 @@
   .play button:disabled{opacity:.35;cursor:default}
   .play .tk{color:var(--dim);font-size:12px;margin-left:auto}
   .pl-load{color:var(--dim);font-size:12.5px;padding:7px 2px}
+  /* interactive play (#5) */
+  .pmode{display:flex;gap:6px;margin-bottom:11px}
+  .pmode .pm{background:#0d1c2e;border:1px solid var(--line);color:var(--dim);border-radius:8px;
+    padding:5px 11px;font-size:12px;cursor:pointer}
+  .pmode .pm.on{background:#123049;color:var(--ink);border-color:var(--accent)}
+  .pmode .pm:hover{color:var(--ink)}
+  .card.legal{cursor:pointer;box-shadow:inset 0 -2px 0 var(--accent);border-radius:3px}
+  .card.legal:hover{background:var(--accent);color:#08331f;font-weight:700}
+  .seat.toplay{outline:2px solid var(--accent);outline-offset:2px;box-shadow:0 0 0 4px rgba(94,224,160,.12)}
+  .table.ipmode .seat.onlead{outline:none} .table.ipmode .leadmark{display:none}
+  .ipmsg{color:#66788f;font-size:11.5px;margin-top:9px;line-height:1.4}
   .trick{display:flex;gap:7px;align-items:center;min-height:30px;margin-top:9px;flex-wrap:wrap}
   .trick .pc{background:#0a1826;border:1px solid var(--line);border-radius:7px;padding:3px 8px;font-size:15px}
   .trick .pc .who{color:var(--dim);font-size:10px;margin-right:5px}
@@ -121,7 +132,7 @@ function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","s","e","w
 // ---- double-dummy play line (#4) ----
 // The line comes either baked into the link (p=...) or, lazily, from a small caching DD-line API
 // (api=... — computed once per board and cached, so it costs nothing to bake it into every link).
-let SEQ=null, POS=0;
+let SEQ=null, POS=0, PLAYMODE="dd", IP=null, HANDS=null, DECL="", LEADER0="", TRUMP="NT";
 function buildSeq(cards){ if(!cards||!cards.length) return null;
   const decl=(q.get("dl")||"s").toLowerCase(); let cur=NEXT[decl];
   const tm=(q.get("c")||"NT").match(/(NT|[shdc])/i); const trump=tm?tm[1].toUpperCase():"NT";
@@ -134,7 +145,7 @@ function winner(trick, trump){ const led=trick[0].card[0].toLowerCase(), tr=trum
     return su===tr?200+r:(su===led?100+r:r); };
   let best=trick[0]; for(const t of trick) if(v(t.card)>v(best.card)) best=t; return best.who; }
 function cardEl(card, who){ return document.querySelector(`.card[data-c="${who}${card.toLowerCase()}"]`); }
-function cardHTML(card){ const su=card[0].toLowerCase(), r=card.slice(1); return `${suitSym(su)}${r==="T"?"10":r}`; }
+function cardHTML(card){ const su=card[0].toLowerCase(), r=card.slice(1).toUpperCase(); return `${suitSym(su)}${r==="T"?"10":r}`; }
 
 function render(){
   const app=document.getElementById("app");
@@ -145,12 +156,15 @@ function render(){
   const decl=(q.get("dl")||"").toLowerCase(), leader=decl?NEXT[decl]:"";
   const vt={"-":"None",n:"N-S",e:"E-W",b:"All"}[vul]||"None";
   const isVul=s=>(vul==="b")||(vul==="n"&&(s==="n"||s==="s"))||(vul==="e"&&(s==="e"||s==="w"));
+  // state for interactive play (#5): the four hands, the trump, declarer and opening leader
+  HANDS=hands; DECL=decl; LEADER0=leader||"";
+  const tmpm=contract.match(/(NT|[shdc])/i); TRUMP=tmpm?tmpm[1].toUpperCase():"NT";
 
   let comp=`<div class="table">`;
   for(const s of ["n","w","e","s"]){ const dl=s===dealer, ld=s===leader;
     comp+=`<div class="seat ${s} ${dl?'deal':''} ${ld?'onlead':''}">
       <div class="lbl"><b class="${isVul(s)?'vred':''}">${NM[s]}</b>
-        <span>${dl?'Dealer':''}${ld?' ◆ on lead':''}</span></div>
+        <span>${dl?'Dealer':''}${ld?'<span class="leadmark"> ◆ on lead</span>':''}</span></div>
       <div class="hand">${handHTML(hands[s], s)}</div></div>`; }
   comp+=`<div class="mid"><div class="dlr">Dlr ${NM[dealer][0]} · Vul ${vt}</div>
     ${contract?`<div class="ct">${fmtContract(contract)}${result?` <span style="font-size:13px;color:#8ea0bd">${result}</span>`:""}</div>`:""}</div></div>`;
@@ -163,7 +177,7 @@ function render(){
 
   SEQ=buildSeq((q.get("p")||"").split(/[ ,]+/).filter(Boolean));
   const playbox=`<div class="box" id="playbox" style="margin-top:14px;display:none">
-    <h2>Double-dummy line</h2><div class="pl-body"></div></div>`;
+    <h2>Play</h2><div class="pl-body"></div></div>`;
 
   app.innerHTML=comp+panels+playbox+
     `<div class="note">Four-colour suits · hover the makeable-tricks grid · the line shown is double-dummy optimal, not the table’s actual play</div>`;
@@ -177,8 +191,18 @@ const PLAY_CONTROLS=`<div class="play"><button id="pf" title="restart">⏮</butt
     <button id="pn">▶</button><button id="pt">trick ▶▶</button>
     <button id="pa">▶ auto</button><span class="tk" id="ptk"></span></div>
   <div class="trick" id="ptv"></div>`;
-function showPlay(){ const box=document.getElementById("playbox");
-  box.style.display=""; box.querySelector(".pl-body").innerHTML=PLAY_CONTROLS; wirePlay(); }
+function showPlay(){ document.getElementById("playbox").style.display=""; renderPlay(); }
+function renderPlay(){
+  const body=document.getElementById("playbox").querySelector(".pl-body");
+  clearBoard();
+  const tbl=document.querySelector(".table"); if(tbl) tbl.classList.toggle("ipmode", PLAYMODE==="ip");
+  const tabs=`<div class="pmode">`+[["dd","Double-dummy line"],["ip","Play it yourself"]].map(([m,l])=>
+      `<button class="pm${PLAYMODE===m?" on":""}" data-mode="${m}">${l}</button>`).join("")+`</div>`;
+  if(PLAYMODE==="ip"){ body.innerHTML=tabs+IP_CONTROLS; wireInteractive(); }
+  else { body.innerHTML=tabs+PLAY_CONTROLS; wirePlay(); }
+  body.querySelectorAll(".pm").forEach(b=>b.onclick=()=>{
+    if(PLAYMODE!==b.dataset.mode){ PLAYMODE=b.dataset.mode; renderPlay(); } });
+}
 
 // Lazily fetch the line from the caching DD-line API when it wasn't baked into the link. Silent
 // no-op without an api= (or with no contract to solve): the play box just stays hidden, and the
@@ -222,6 +246,58 @@ function wirePlay(){
   };
   POS=0; paint();
 }
+
+// ---- interactive play (#5): you choose every card for the hand on turn ----
+const IP_CONTROLS=`<div class="play"><button id="ipu">↶ undo</button><button id="ipr">⟲ restart</button>
+    <span class="tk" id="iptk"></span></div>
+  <div class="trick" id="iptv"></div>
+  <div class="ipmsg">Click a card in the highlighted hand — follow-suit is enforced and the lead passes to the trick winner.</div>`;
+function clearBoard(){ document.querySelectorAll('.card').forEach(c=>c.classList.remove('played','now','legal'));
+  document.querySelectorAll('.seat').forEach(s=>s.classList.remove('toplay')); }
+function ipInit(){ IP={rem:{},trick:[],leader:LEADER0,turn:LEADER0,ns:0,ew:0,hist:[],done:false};
+  for(const s of ["n","e","s","w"]){ IP.rem[s]=new Set();
+    for(const su of "shdc") for(const r of (HANDS[s][su]||"")) IP.rem[s].add(su+r.toLowerCase()); } }
+function ipSnap(){ return {rem:{n:[...IP.rem.n],e:[...IP.rem.e],s:[...IP.rem.s],w:[...IP.rem.w]},
+  trick:IP.trick.map(t=>({...t})),leader:IP.leader,turn:IP.turn,ns:IP.ns,ew:IP.ew,done:IP.done}; }
+function ipRestore(s){ IP.rem={n:new Set(s.rem.n),e:new Set(s.rem.e),s:new Set(s.rem.s),w:new Set(s.rem.w)};
+  IP.trick=s.trick.map(t=>({...t}));IP.leader=s.leader;IP.turn=s.turn;IP.ns=s.ns;IP.ew=s.ew;IP.done=s.done; }
+function ipLegal(seat,key,trick){ if(!IP.rem[seat].has(key)) return false;
+  if(!trick.length) return true; const led=trick[0].card[0]; if(key[0]===led) return true;
+  for(const k of IP.rem[seat]) if(k[0]===led) return false; return true; }   // void in led suit -> anything
+function ipPlay(key){ if(IP.done) return;
+  const stale=IP.trick.length===4, eff=stale?[]:IP.trick, seat=IP.turn;      // a completed trick stays shown
+  if(!ipLegal(seat,key,eff)) return;                                          // until the next card is led
+  IP.hist.push(ipSnap());
+  if(stale) IP.trick=[];
+  IP.rem[seat].delete(key); IP.trick.push({card:key,who:seat});
+  if(IP.trick.length===4){ const w=winner(IP.trick,TRUMP);
+    if(w==="n"||w==="s") IP.ns++; else IP.ew++;
+    IP.leader=w; IP.turn=w; if(IP.ns+IP.ew===13) IP.done=true; }
+  else IP.turn=NEXT[seat];
+  ipPaint(); }
+function ipPaint(){ clearBoard();
+  const eff=IP.trick.length===4?[]:IP.trick;
+  for(const s of ["n","e","s","w"]) document.querySelectorAll(`.seat.${s} .card`).forEach(el=>{
+    if(!IP.rem[s].has(el.getAttribute('data-c').slice(1))) el.classList.add('played'); });
+  if(IP.trick.length){ const last=IP.trick[IP.trick.length-1], el=cardEl(last.card,last.who);
+    if(el){ el.classList.remove('played'); el.classList.add('now'); } }
+  if(!IP.done){ const st=document.querySelector(`.seat.${IP.turn}`); if(st) st.classList.add('toplay');
+    document.querySelectorAll(`.seat.${IP.turn} .card`).forEach(el=>{ const key=el.getAttribute('data-c').slice(1);
+      if(IP.rem[IP.turn].has(key)&&ipLegal(IP.turn,key,eff)) el.classList.add('legal'); }); }
+  document.getElementById('iptv').innerHTML=IP.trick.map((t,i)=>
+    `<span class="pc${i===IP.trick.length-1&&IP.trick.length<4?' lead':''}"><span class="who">${t.who.toUpperCase()}</span>${cardHTML(t.card)}</span>`).join("");
+  const declSide=(DECL==="n"||DECL==="s")?"ns":"ew", dt=declSide==="ns"?IP.ns:IP.ew;
+  const need=6+(parseInt((q.get("c")||"1")[0])||1);
+  const tk=document.getElementById('iptk');
+  if(IP.done){ const d=dt-need; tk.textContent=`Done · declarer ${dt} tricks (${d===0?"=":(d>0?"+"+d:d)}), needed ${need}`; }
+  else tk.textContent=`${NM[IP.turn]} to play · declarer ${dt}, needs ${need} · NS ${IP.ns}–EW ${IP.ew}`;
+  const u=document.getElementById('ipu'); if(u) u.disabled=IP.hist.length===0; }
+function wireInteractive(){ if(!IP) ipInit();
+  document.getElementById('ipu').onclick=()=>{ if(IP.hist.length){ ipRestore(IP.hist.pop()); ipPaint(); } };
+  document.getElementById('ipr').onclick=()=>{ ipInit(); ipPaint(); };
+  ipPaint(); }
+document.addEventListener('click',e=>{ if(PLAYMODE!=='ip'||!IP) return;
+  const el=e.target.closest('.card.legal'); if(el) ipPlay(el.getAttribute('data-c').slice(1)); });
 render();
 </script>
 </body>
