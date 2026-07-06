@@ -170,7 +170,7 @@ function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","s","e","w
 // ---- double-dummy play line (#4) ----
 // The line comes either baked into the link (p=...) or, lazily, from a small caching DD-line API
 // (api=... — computed once per board and cached, so it costs nothing to bake it into every link).
-let SEQ=null, POS=0, PLAYMODE="dd", IP=null, HANDS=null, DECL="", LEADER0="", TRUMP="NT";
+let SEQ=null, POS=0, PLAYMODE="ip", IP=null, HANDS=null, DECL="", LEADER0="", TRUMP="NT";
 let bottomSeat="s"; const RHO={n:"w",w:"s",s:"e",e:"n"};   // rotate: which seat sits at the bottom
 function applyRotation(){                                   // place seats around the fixed centre
   const B=bottomSeat, pos={[B]:[2,3],[NEXT[B]]:[1,2],[PARTNER[B]]:[2,1],[RHO[B]]:[3,2]};   // bot,left,top,right
@@ -230,7 +230,9 @@ function render(){
   const rot=document.getElementById("rotate");
   if(rot){ rot.style.display=""; rot.onclick=()=>{ bottomSeat=NEXT[bottomSeat]; applyRotation(); }; }
   applyRotation();
-  if(SEQ) showPlay(); else loadLine();
+  // show the play panel whenever the deal is playable (interactive needs only a contract + declarer;
+  // the DD line loads lazily when its tab is opened). Baked p= also shows it.
+  if(SEQ || (q.get("c") && q.get("dl"))) showPlay(); else loadLine();
 }
 
 const PLAY_CONTROLS=`<div class="play"><button id="pf" title="restart">⏮</button><button id="pp">◀</button>
@@ -245,27 +247,27 @@ function renderPlay(){
   const tabs=`<div class="pmode">`+[["dd","Double-dummy line"],["ip","Play it yourself"]].map(([m,l])=>
       `<button class="pm${PLAYMODE===m?" on":""}" data-mode="${m}">${l}</button>`).join("")+`</div>`;
   if(PLAYMODE==="ip"){ body.innerHTML=tabs+IP_CONTROLS; wireInteractive(); }
-  else { body.innerHTML=tabs+PLAY_CONTROLS; wirePlay(); }
+  else if(SEQ){ body.innerHTML=tabs+PLAY_CONTROLS; wirePlay(); }
+  else { body.innerHTML=tabs+'<div class="pl-load">Computing the double-dummy line…</div>'; loadLine(); }
   body.querySelectorAll(".pm").forEach(b=>b.onclick=()=>{
     if(PLAYMODE!==b.dataset.mode){ PLAYMODE=b.dataset.mode; renderPlay(); } });
 }
 
-// Lazily fetch the line from the caching DD-line API when it wasn't baked into the link. Silent
-// no-op without an api= (or with no contract to solve): the play box just stays hidden, and the
-// auction + makeable-tricks grid still stand on their own.
+// Lazily fetch the DD line for the "Double-dummy line" tab when it wasn't baked into the link. The
+// caller (renderPlay's dd branch) has already shown a "Computing…" line, which this updates; on
+// success it stores SEQ and re-renders the stepper. The interactive tab never needs this.
 async function loadLine(){
   const api=q.get("api"), c=q.get("c"), dl=q.get("dl");
-  if(!api||!c||!dl) return;
-  const box=document.getElementById("playbox"), body=()=>box.querySelector(".pl-body");
-  box.style.display=""; body().innerHTML='<div class="pl-load">Computing the double-dummy line…</div>';
+  const note=t=>{ const el=document.querySelector("#playbox .pl-body .pl-load"); if(el) el.textContent=t; };
+  if(!api||!c||!dl){ note("Double-dummy line unavailable for this deal."); return; }
   try{
     const u=new URL(api, location.href);
     ["n","e","s","w","c","dl","l"].forEach(k=>{const v=q.get(k); if(v!==null) u.searchParams.set(k,v);});
     const r=await fetch(u.toString()); const j=await r.json();
     const cards=(j&&j.p)||[];
-    if(cards.length){ SEQ=buildSeq(cards); showPlay(); }
-    else body().innerHTML='<div class="pl-load">Double-dummy line unavailable for this deal.</div>';
-  }catch(e){ body().innerHTML='<div class="pl-load">Couldn’t load the double-dummy line.</div>'; }
+    if(cards.length){ SEQ=buildSeq(cards); if(PLAYMODE==="dd") renderPlay(); }
+    else note("Double-dummy line unavailable for this deal.");
+  }catch(e){ note("Couldn’t load the double-dummy line."); }
 }
 
 function wirePlay(){
