@@ -137,23 +137,28 @@ const RANKV={A:14,K:13,Q:12,J:11,T:10,"9":9,"8":8,"7":7,"6":6,"5":5,"4":4,"3":3,
 const NEXT={n:"e",e:"s",s:"w",w:"n"};
 const NM={n:"North",e:"East",s:"South",w:"West"};
 const q=new URLSearchParams(location.search);
+// every value here comes from the URL and is attacker-controllable — escape anything that reaches
+// innerHTML, and never trust a param verbatim in a tag or an href.
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
 function parseHand(str){ const out={s:"",h:"",d:"",c:""}; let cur=null;
   for(const ch of (str||"")){ const l=ch.toLowerCase();
-    if(l==="s"||l==="h"||l==="d"||l==="c") cur=l; else if(cur) out[cur]+=ch.toUpperCase(); }
+    if(l==="s"||l==="h"||l==="d"||l==="c") cur=l;
+    else if(cur && RANKV[ch.toUpperCase()]) out[cur]+=ch.toUpperCase(); }   // valid ranks only -> no injection
   return out; }
-function suitSym(ch){ const l=ch.toLowerCase(); return SUIT[l]?`<span class="${SUIT[l].c}">${SUIT[l].sym}</span>`:ch; }
+function suitSym(ch){ const l=ch.toLowerCase(); return SUIT[l]?`<span class="${SUIT[l].c}">${SUIT[l].sym}</span>`:esc(ch); }
 function handHTML(h, seat){ return ORDER.split("").map(su=>{
     const cards=(h[su]||"").split("").map(r=>`<span class="card" data-c="${seat}${su}${r.toLowerCase()}">${r==="T"?"10":r}</span>`).join("");
     return `<div class="suit ${SUIT[su].c}"><span class="s">${SUIT[su].sym}</span>${cards||'<span style="color:#556">—</span>'}</div>`;
   }).join(""); }
-function fmtContract(c){ const m=(c||"").match(/^(\d)(NT|[shdc])(x{0,2})/i); if(!m) return c||"";
+function fmtContract(c){ const m=(c||"").match(/^(\d)(NT|[shdc])(x{0,2})/i); if(!m) return esc(c||"");
   const dbl=m[3]?` <span style="color:#ff9d5e">${m[3].toUpperCase()}</span>`:"";
   return `${m[1]}${m[2].toUpperCase()==="NT"?"NT":suitSym(m[2])}${dbl}`; }
-function fmtPar(par){ const m=(par||"").match(/^(\d)(NT|[shdc])([nesw])?(.*)$/i); if(!m) return par||"";
+function fmtPar(par){ const m=(par||"").match(/^(\d)(NT|[shdc])([nesw])?(.*)$/i); if(!m) return esc(par||"");
   const strain=m[2].toUpperCase()==="NT"?"NT":suitSym(m[2]);
   const decl=m[3]?`&nbsp;<span class="pardecl">${m[3].toUpperCase()}</span>`:"";
-  return `${m[1]}${strain}${decl}${m[4]||""}`; }
+  return `${m[1]}${strain}${decl}${esc(m[4]||"")}`; }
 
 function auctionHTML(a, dealer){
   const calls=a.split(/[-,]/).filter(x=>x!==""); const cols=["w","n","e","s"];
@@ -168,7 +173,7 @@ function fmtCall(c){ const u=c.toUpperCase();
   if(u==="X") return '<span class="call dbl">X</span>';
   if(u==="XX") return '<span class="call dbl">XX</span>';
   const m=c.match(/^(\d)(NT|[shdc])$/i);
-  return m?`${m[1]}${m[2].toUpperCase()==="NT"?"NT":suitSym(m[2])}`:u; }
+  return m?`${m[1]}${m[2].toUpperCase()==="NT"?"NT":suitSym(m[2])}`:esc(u); }
 
 function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","s","e","w"];
   const IDX={n:0,e:1,s:2,w:3};   // dd is packed seat-major N,E,S,W — map each display row to its block
@@ -200,7 +205,8 @@ function winner(trick, trump){ const led=trick[0].card[0].toLowerCase(), tr=trum
     return su===tr?200+r:(su===led?100+r:r); };
   let best=trick[0]; for(const t of trick) if(v(t.card)>v(best.card)) best=t; return best.who; }
 function cardEl(card, who){ return document.querySelector(`.card[data-c="${who}${card.toLowerCase()}"]`); }
-function cardHTML(card){ const su=card[0].toLowerCase(), r=card.slice(1).toUpperCase(); return `${suitSym(su)}${r==="T"?"10":r}`; }
+function cardHTML(card){ const su=(card||"")[0]?card[0].toLowerCase():"", r=(card||"").slice(1).toUpperCase();
+  if(!SUIT[su]) return esc(card); return `${suitSym(su)}${r==="T"?"10":esc(r)}`; }
 // the current trick laid out on the "table" (centre), each card at its player's seat direction
 // (following the rotation) — so plays stay visible even when the played hand is hidden face-down.
 function renderTableCards(trick, winSeat){
@@ -216,7 +222,8 @@ function render(){
   const app=document.getElementById("app");
   if(!["n","e","s","w"].some(s=>q.get(s))) return;
   const hands={}; ["n","e","s","w"].forEach(s=>hands[s]=parseHand(q.get(s)));
-  const dealer=(q.get("d")||"n").toLowerCase(), vul=(q.get("v")||"-").toLowerCase();
+  let dealer=(q.get("d")||"n").toLowerCase(); if(!NM[dealer]) dealer="n";   // clamp: NM[dealer][0] must exist
+  const vul=(q.get("v")||"-").toLowerCase();
   const contract=q.get("c")||"", result=q.get("r")||"";
   const decl=(q.get("dl")||"").toLowerCase(), leader=decl?NEXT[decl]:"";
   const vt={"-":"None",n:"N-S",e:"E-W",b:"All"}[vul]||"None";
@@ -235,7 +242,7 @@ function render(){
     <div class="tablecards">
       <span class="tc" data-pos="top"></span>
       <span class="tc" data-pos="left"></span>
-      <span class="ct">${contract?`${fmtContract(contract)}${result?` <span class="rslt">${result}</span>`:""}`:""}</span>
+      <span class="ct">${contract?`${fmtContract(contract)}${result?` <span class="rslt">${esc(result)}</span>`:""}`:""}</span>
       <span class="tc" data-pos="right"></span>
       <span class="tc" data-pos="bottom"></span>
     </div></div></div>`;
@@ -252,9 +259,11 @@ function render(){
 
   app.innerHTML=comp+panels+playbox+
     `<div class="note">Four-colour suits · hover the makeable-tricks grid · the line shown is double-dummy optimal, not the table’s actual play<br>Keys — line: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>space</b> auto · play: <b>⌫</b> undo, <b>R</b> restart, <b>B</b> best line, <b>C</b> claim</div>`;
-  document.getElementById("sub").innerHTML=(contract?fmtContract(contract):"")+(result?` ${result}`:"")+(decl?` by ${decl.toUpperCase()}`:"");
+  document.getElementById("sub").innerHTML=(contract?fmtContract(contract):"")+(result?` ${esc(result)}`:"")+(decl?` by ${esc(decl.toUpperCase())}`:"");
   const back=document.getElementById("back"), b=q.get("back");
-  if(b){ back.href=b; back.style.display=""; }
+  // only http/https (resolved against this page) — blocks javascript:/data: back links
+  if(b){ try{ const url=new URL(b, location.href);
+    if(url.protocol==="http:"||url.protocol==="https:"){ back.href=url.href; back.style.display=""; } }catch(e){} }
   const rot=document.getElementById("rotate");
   if(rot){ rot.style.display=""; rot.onclick=()=>{ bottomSeat=NEXT[bottomSeat]; applyRotation(); }; }
   applyRotation();
