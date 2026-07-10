@@ -60,8 +60,8 @@ def compute(qs):
     if "played" in qs:
         prefix = [c for c in one("played").lower().split(",") if c]
         if one("line"):                                    # DD-optimal continuation from this position
-            return {"p": ddline.dd_line_from(hands, strain, decl, prefix)}
-        return ddline.dd_eval(hands, strain, decl, prefix) or {"cards": {}}
+            return {"p": ddline.line_from_for(hands, strain, decl, prefix)}
+        return ddline.eval_for(hands, strain, decl, prefix) or {"cards": {}}
     lead = one("l").upper()
     line = ddline.line_for(hands, strain, decl, lead or None)
     return {"p": line, "strain": strain, "declarer": decl, "lead": lead}

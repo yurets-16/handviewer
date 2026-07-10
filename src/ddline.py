@@ -161,6 +161,44 @@ def _default_cache_dir():
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "_ddcache")
 
 
+def _cached_json(kind, keyraw, compute, cache_dir=None):
+    """Generic one-file-per-key cache (same discipline as line_for): return the cached object if
+    present, else compute, store atomically and return. Falsy results are returned but never
+    stored — the engine may be off or the position transientnly unsolvable."""
+    cache_dir = cache_dir or _default_cache_dir()
+    key = f"{kind}-{hashlib.sha1(keyraw.encode('utf-8')).hexdigest()[:16]}"
+    path = os.path.join(cache_dir, key + ".json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, ValueError):
+        pass
+    obj = compute()
+    if obj:
+        try:
+            os.makedirs(cache_dir, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=cache_dir, suffix=".tmp")
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(obj, f)
+            os.replace(tmp, path)                      # atomic publish
+        except OSError:
+            pass
+    return obj
+
+def eval_for(hands, strain, declarer, played, cache_dir=None):
+    """Cache-aware dd_eval: the per-position evaluations are the viewer's most frequent request
+    (one per card stepped), identical across visitors — a pure function of the position, so cached
+    forever like the play lines."""
+    raw = f"{_pbn(hands)}|{strain}|{declarer}|{','.join(played)}|eval"
+    return _cached_json("pos", raw, lambda: dd_eval(hands, strain, declarer, played), cache_dir)
+
+def line_from_for(hands, strain, declarer, played, cache_dir=None):
+    """Cache-aware dd_line_from (DD-optimal continuation from a mid-play position)."""
+    raw = f"{_pbn(hands)}|{strain}|{declarer}|{','.join(played)}|line"
+    obj = _cached_json("posline", raw,
+                       lambda: {"p": dd_line_from(hands, strain, declarer, played)}, cache_dir)
+    return (obj or {}).get("p", [])
+
 def line_for(hands, strain, declarer, lead=None, cache_dir=None):
     """Cache-aware dd_play_line: return the cached line if present, else compute, store and return.
     One JSON file per key (concurrency-friendly — independent boards never touch the same file)."""
