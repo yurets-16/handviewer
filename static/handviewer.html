@@ -27,6 +27,10 @@
   .seat .lbl{font-size:11px;color:var(--dim);letter-spacing:.04em;margin-bottom:3px;display:flex;
     justify-content:space-between;align-items:center}
   .seat.deal .lbl b{color:var(--gold)}
+  /* who sat there (pl=), when the link came from a protocol: the player over their team */
+  .seat .who{font-size:11.5px;line-height:1.25;margin:-1px 0 5px;overflow-wrap:anywhere}
+  .seat .who b{color:var(--fg);font-weight:600}
+  .seat .who span{display:block;font-size:10px;color:var(--dim);letter-spacing:.03em}
   .seat.onlead{outline:2px solid var(--accent);outline-offset:1px}
   /* long suit (up to 13 cards) must never widen the seat past its track and force a page scroll —
      wrap the overflow cards onto a second line rather than overflowing. The hanging indent
@@ -140,6 +144,13 @@ const q=new URLSearchParams(location.search);
 // pa=1 marks the baked p= line as the table's ACTUAL play (results pages hand it over that
 // way); without it a baked line is the double-dummy one, which is a different claim entirely
 const ACTUAL=q.get("pa")==="1";
+// pl=<name>|<team>~... in N,E,S,W order — who actually sat there, when the link came from
+// a protocol. Absent for a bare deal link, and then the seats stay anonymous.
+const PL=(()=>{ const v=q.get("pl"); if(!v) return null;
+  const out={}, parts=v.split("~");
+  ["n","e","s","w"].forEach((s,i)=>{ const [nm,tm]=(parts[i]||"").split("|");
+    if(nm) out[s]={n:nm,t:tm||""}; });
+  return Object.keys(out).length?out:null; })();
 // every value here comes from the URL and is attacker-controllable — escape anything that reaches
 // innerHTML, and never trust a param verbatim in a tag or an href.
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>
@@ -242,6 +253,7 @@ function render(){
     comp+=`<div class="seat ${s} ${dl?'deal':''} ${ld?'onlead':''}">
       <div class="lbl"><b class="${isVul(s)?'vred':''}">${NM[s]}</b>
         <span>${dl?'Dealer':''}${ld?'<span class="leadmark"> ◆ on lead</span>':''}</span></div>
+      ${PL&&PL[s]?`<div class="who"><b>${esc(PL[s].n)}</b>${PL[s].t?`<span>${esc(PL[s].t)}</span>`:""}</div>`:""}
       <div class="hand">${handHTML(hands[s], s)}</div></div>`; }
   comp+=`<div class="mid"><div class="dlr">Dlr ${NM[dealer][0]} · Vul ${vt}</div>
     <div class="tablecards">
