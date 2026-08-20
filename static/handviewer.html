@@ -137,6 +137,9 @@ const RANKV={A:14,K:13,Q:12,J:11,T:10,"9":9,"8":8,"7":7,"6":6,"5":5,"4":4,"3":3,
 const NEXT={n:"e",e:"s",s:"w",w:"n"};
 const NM={n:"North",e:"East",s:"South",w:"West"};
 const q=new URLSearchParams(location.search);
+// pa=1 marks the baked p= line as the table's ACTUAL play (results pages hand it over that
+// way); without it a baked line is the double-dummy one, which is a different claim entirely
+const ACTUAL=q.get("pa")==="1";
 // every value here comes from the URL and is attacker-controllable — escape anything that reaches
 // innerHTML, and never trust a param verbatim in a tag or an href.
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>
@@ -258,7 +261,7 @@ function render(){
     <h2>Play</h2><div class="pl-body"></div></div>`;
 
   app.innerHTML=comp+panels+playbox+
-    `<div class="note">Four-colour suits · hover the makeable-tricks grid · the line shown is double-dummy optimal, not the table’s actual play<br>Keys — line: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>space</b> auto · play: <b>⌫</b> undo, <b>R</b> restart, <b>B</b> best line, <b>C</b> claim</div>`;
+    `<div class="note">Four-colour suits · hover the makeable-tricks grid · ${ACTUAL?"the line shown is the table’s actual card play":"the line shown is double-dummy optimal, not the table’s actual play"}<br>Keys — line: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>space</b> auto · play: <b>⌫</b> undo, <b>R</b> restart, <b>B</b> best line, <b>C</b> claim</div>`;
   document.getElementById("sub").innerHTML=(contract?fmtContract(contract):"")+(result?` ${esc(result)}`:"")+(decl?` by ${esc(decl.toUpperCase())}`:"");
   const back=document.getElementById("back"), b=q.get("back");
   // only http/https (resolved against this page) — blocks javascript:/data: back links
@@ -281,7 +284,7 @@ function renderPlay(){
   const body=document.getElementById("playbox").querySelector(".pl-body");
   clearBoard();
   const tbl=document.querySelector(".table"); if(tbl) tbl.classList.toggle("ipmode", PLAYMODE==="ip");
-  const tabs=`<div class="pmode">`+[["dd","Double-dummy line"],["ip","Play it yourself"]].map(([m,l])=>
+  const tabs=`<div class="pmode">`+[["dd",ACTUAL?"Card play at the table":"Double-dummy line"],["ip","Play it yourself"]].map(([m,l])=>
       `<button class="pm${PLAYMODE===m?" on":""}" data-mode="${m}">${l}</button>`).join("")+`</div>`;
   if(PLAYMODE==="ip"){ body.innerHTML=tabs+IP_CONTROLS; wireInteractive(); }
   else if(SEQ){ body.innerHTML=tabs+PLAY_CONTROLS; wirePlay(); }
