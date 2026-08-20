@@ -333,7 +333,19 @@ function wirePlay(){
     document.getElementById('ptv').innerHTML=shown.map((x,i)=>
       `<span class="pc${i===win?' win':''}"><span class="who">${x.who.toUpperCase()}</span>${cardHTML(x.card)}</span>`).join("");
     renderTableCards(shown, shown.length===4?winner(shown,TRUMP):null);
-    document.getElementById('ptk').textContent=`card ${POS}/${SEQ.length} · trick ${Math.max(1,Math.ceil(POS/4))}/${Math.ceil(SEQ.length/4)}`;
+    // running trick count: how many COMPLETED tricks each side has taken so far, and where
+    // that leaves the declarer against the contract — the same reading the interactive tab gives
+    let ns=0, ew=0;
+    for(let i=0; i+4<=POS; i+=4){ const w=winner(SEQ.slice(i,i+4),TRUMP);
+      if(w==="n"||w==="s") ns++; else ew++; }
+    const dside=(DECL==="n"||DECL==="s")?"ns":"ew", dt=dside==="ns"?ns:ew;
+    const need=6+(parseInt((q.get("c")||"1")[0])||1);
+    const done=POS>=SEQ.length&&SEQ.length%4===0, d=dt-need;
+    document.getElementById('ptk').textContent=
+      `card ${POS}/${SEQ.length} \u00b7 trick ${Math.max(1,Math.ceil(POS/4))}/${Math.ceil(SEQ.length/4)}`
+      + ` \u00b7 N-S ${ns} \u2013 E-W ${ew}`
+      + (done ? ` \u00b7 declarer ${dt} (${d===0?"=":(d>0?"+"+d:d)})`
+              : ` \u00b7 declarer ${dt}, needs ${need}`);
     document.getElementById('pp').disabled=POS===0; document.getElementById('pf').disabled=POS===0;
     document.getElementById('pn').disabled=POS>=SEQ.length; document.getElementById('pt').disabled=POS>=SEQ.length;
   };
