@@ -190,7 +190,9 @@ function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","s","e","w
 // ---- double-dummy play line (#4) ----
 // The line comes either baked into the link (p=...) or, lazily, from a small caching DD-line API
 // (api=... — computed once per board and cached, so it costs nothing to bake it into every link).
-let SEQ=null, POS=0, PLAYMODE="ip", IP=null, HANDS=null, DECL="", LEADER0="", TRUMP="NT";
+// opening a deal from a results page with its recorded play (pa=1) means the visitor asked
+// for that line, so start on it; otherwise the interactive tab is the useful default
+let SEQ=null, POS=0, PLAYMODE=ACTUAL?"dd":"ip", IP=null, HANDS=null, DECL="", LEADER0="", TRUMP="NT";
 let bottomSeat="s"; const RHO={n:"w",w:"s",s:"e",e:"n"};   // rotate: which seat sits at the bottom
 function applyRotation(){                                   // place seats around the fixed centre
   const B=bottomSeat, pos={[B]:[2,3],[NEXT[B]]:[1,2],[PARTNER[B]]:[2,1],[RHO[B]]:[3,2]};   // bot,left,top,right
