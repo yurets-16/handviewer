@@ -2,22 +2,26 @@
 # -*- coding: utf-8 -*-
 """Tiny caching DD play-line micro-API for the hand viewer.
 
-The static site never needs this: the auction and makeable-tricks grid are baked into every board
-popup at build time. This service only lights up the viewer's optional card-by-card play line. It
-computes the double-dummy line lazily (endplay) and caches it to disk (ddline.py), so the first
-view of a board costs one DDS solve chain (~10-200 ms) and every later view — any visitor, any
-rebuild — is a file read. Pure standard library + endplay.
+The viewer never needs this to show a deal: the auction and makeable-tricks grid travel in the
+link itself. This service only lights up the double-dummy parts of the play panel (the DD line,
+per-card DDS, best line, claim, playing against the double-dummy). It computes lazily (endplay)
+and caches to disk (ddline.py), so the first view of a board costs one DDS solve chain
+(~10-200 ms) and every later view — any visitor — is a file read. Pure standard library + endplay.
 
 Run (from a venv that has endplay):
-    .venv/bin/python src/ddserver.py --host 127.0.0.1 --port 8098
+    python server/ddserver.py --host 127.0.0.1 --port 8098
 Then expose it and point the viewer at it: proxy a public path to this port in nginx, e.g.
-    location /api/ddline { proxy_pass http://127.0.0.1:8098/ddline; }
-and set  DDLINE_API = "/api/ddline"  in src/config.py so every board link carries api=/api/ddline.
+    location = /api/ddline { proxy_pass http://127.0.0.1:8098/ddline; }
+and add  api=/api/ddline  to every viewer link.
 
-Request:  GET /ddline?n=<hand>&e=&s=&w=&c=<contract>&dl=<declarer>&l=<lead>
-  hands in the viewer's format (s<spades>h<hearts>d<diamonds>c<clubs>), c like "3nt"/"4sx",
-  dl a seat letter, l the opening lead "c9" (optional).
-Response: {"p": ["c7","cA",...], "strain": "H", "declarer": "E", "lead": "C9"}   (p=[] if unsolvable)
+Requests (hands in the viewer's format s<spades>h<hearts>d<diamonds>c<clubs>, c like "3nt"/"4sx",
+dl a seat letter):
+  GET /ddline?n=&e=&s=&w=&c=&dl=&l=<lead>        the full DD line from the opening lead ("c9",
+      optional) -> {"p": ["c7","cA",...], "strain": "H", "declarer": "E", "lead": "C9"}
+  GET /ddline?...&played=<k1,k2,...>             DD evaluation of the position after those cards
+      -> {"turn": "W", "side": "ew", "best": 5, "cards": {"c7": 5, "ca": 4, ...}}
+  GET /ddline?...&played=<k1,k2,...>&line=1      the DD-optimal continuation -> {"p": [...]}
+An unusable request (incomplete or illegal deal, bad contract) answers p=[] / cards={}, never 500.
 """
 import os, sys, re, json, argparse, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer

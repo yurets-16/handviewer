@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hand viewer &middot; neobridge</title>
+<title>Hand viewer</title>
 <style>
   :root{ --panel:#182234; --line:#2a3852; --ink:#e7eef7; --dim:#8ea0bd; --accent:#5ee0a0;
     --sp:#e9eef7; --he:#ff6b6b; --di:#ffab5e; --cl:#5fd39a; --gold:#E5B17C; }
@@ -141,7 +141,7 @@ const RANKV={A:14,K:13,Q:12,J:11,T:10,"9":9,"8":8,"7":7,"6":6,"5":5,"4":4,"3":3,
 const NEXT={n:"e",e:"s",s:"w",w:"n"};
 const NM={n:"North",e:"East",s:"South",w:"West"};
 const q=new URLSearchParams(location.search);
-// pa=1 marks the baked p= line as the table's ACTUAL play (results pages hand it over that
+// pa=1 marks the baked p= line as the table's ACTUAL play (a results page hands it over that
 // way); without it a baked line is the double-dummy one, which is a different claim entirely
 const ACTUAL=q.get("pa")==="1";
 // pl=<name>|<team>~... in N,E,S,W order — who actually sat there, when the link came from

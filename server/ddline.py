@@ -2,17 +2,17 @@
 # -*- coding: utf-8 -*-
 """Double-dummy optimal PLAY LINE for one deal+contract, with a persistent on-disk cache.
 
-The board popup already shows the makeable-tricks grid and par (a static, build-time DDS table).
-This adds the actual card-by-card line: fix the opening lead, then let double-dummy play best for
-everyone. It is far too expensive to precompute for every board+contract at build time (~52 DDS
-solves each), so it is computed lazily — once per (deal, contract, lead) — and cached to disk, so
-the second request for the same board (any viewer, any rebuild) is a cheap file read.
+The makeable-tricks grid and par can be baked into a viewer link (dd=, par=) at build time; this
+adds the actual card-by-card line: fix the opening lead, then let double-dummy play best for
+everyone. It is far too expensive to precompute for every board+contract (~52 DDS solves each),
+so it is computed lazily — once per (deal, contract, lead) — and cached to disk, so the second
+request for the same board (any viewer) is a cheap file read.
 
+Hands are dicts {"N"|"E"|"S"|"W": {"S"|"H"|"D"|"C": "AKT2"}} — ranks high to low, ten as 'T'.
 Card strings are the hand-viewer's `p=` format: suit letter + rank, ten as 'T', e.g. 'c7','hA','sT'.
 Needs endplay (DDS); without it every call returns [] and the caller simply omits the play line.
 """
-import os, sys, json, hashlib, tempfile
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import os, json, hashlib, tempfile
 
 try:
     from endplay.types import Deal, Player, Denom
@@ -21,14 +21,49 @@ try:
 except Exception:
     HAVE_DDS = False
 
-# reuse butler's seat/strain maps + lead-substitution so this line is consistent with the popup's
-# "DD·lead" number (same leader, same nearest-card handling for a recorded lead not in the hand).
-import butler
-_STRAIN = butler._STRAIN                    # {"NT":"nt","S":"spades",...}
-_PLR = butler._PLR                          # {"N":"north",...}
-_LHO = butler._LHO                          # opening leader = declarer's LHO
-_pbn = butler._pbn
-_pick_lead_rank = butler._pick_lead_rank
+_STRAIN = {"NT": "nt", "S": "spades", "H": "hearts", "D": "diamonds", "C": "clubs"}
+_PLR = {"N": "north", "E": "east", "S": "south", "W": "west"}
+_LHO = {"N": "E", "E": "S", "S": "W", "W": "N"}   # opening leader = declarer's left-hand opponent
+_RANKS = "AKQJT98765432"   # high -> low
+
+def _pbn(hands):
+    seat = lambda s: ".".join(hands[s][x] for x in "SHDC")
+    return "N:" + " ".join(seat(s) for s in ("N", "E", "S", "W"))
+
+def _valid_deal(hands):
+    """True iff `hands` is a complete, legal deal — four hands of thirteen cards, all 52 distinct.
+    The hands arrive straight from a public URL, and a partial or duplicated deal can HARD-CRASH the
+    DDS C solver with an uncatchable SIGSEGV (taking the whole service down), so every entry point
+    below rejects one first rather than feeding it in."""
+    seats = ("N", "E", "S", "W")
+    try:
+        cards = [(su, c) for s in seats for su in "SHDC" for c in hands[s][su]]
+        if any(sum(len(hands[s][su]) for su in "SHDC") != 13 for s in seats):
+            return False
+    except (KeyError, TypeError):
+        return False
+    return len(cards) == 52 and len(set(cards)) == 52
+
+def _pick_lead_rank(cards, spec):
+    """cards: the rank chars the opening leader holds in the led suit (e.g. 'KQ72'). spec: the
+    recorded lead's rank ('9','T','A'). -> (rank_to_use, substituted).
+    Exact card in hand -> it, not substituted. Otherwise the closest card of that suit: the
+    HIGHEST card ranked BELOW the recorded one, or (if none) the LOWEST card ranked ABOVE it.
+    (None, False) only when the leader is void in the suit."""
+    if not cards:
+        return None, False
+    spec = "T" if spec == "10" else spec
+    if spec in cards:
+        return spec, False
+    if spec not in _RANKS:
+        return None, False
+    si = _RANKS.index(spec)
+    below = [c for c in cards if _RANKS.index(c) > si]   # ranked lower than the recorded card
+    if below:
+        return min(below, key=_RANKS.index), True         # highest of those below
+    above = [c for c in cards if _RANKS.index(c) < si]
+    return max(above, key=_RANKS.index), True             # lowest of those above
+
 _CARD_SUIT = {"♣": "c", "♦": "d", "♥": "h", "♠": "s"}   # ♣♦♥♠ -> letters
 
 
@@ -60,7 +95,8 @@ def _replay_prefix(d, played):
 
 def _pos_deal(hands, strain, declarer, played):
     """A Deal set to trump + opening leader with `played` already applied. None if unusable/illegal."""
-    if not HAVE_DDS or not hands or strain not in _STRAIN or declarer not in _LHO:
+    if (not HAVE_DDS or not hands or strain not in _STRAIN or declarer not in _LHO
+            or not _valid_deal(hands)):
         return None
     try:
         d = Deal(_pbn(hands))
@@ -113,10 +149,11 @@ def dd_line_from(hands, strain, declarer, played):
 
 def dd_play_line(hands, strain, declarer, lead=None):
     """The double-dummy optimal line as a list of 52 cards ('c7','hA',...). Starts with `lead`
-    (resolved to the nearest card of that suit actually in the leader's hand, matching the popup);
+    (resolved to the nearest card of that suit actually in the leader's hand);
     if `lead` is missing/void, double-dummy also chooses the opening lead. [] if DDS is unavailable
     or the inputs are unusable (no hands, odd strain/declarer, engine error)."""
-    if not HAVE_DDS or not hands or strain not in _STRAIN or declarer not in _LHO:
+    if (not HAVE_DDS or not hands or strain not in _STRAIN or declarer not in _LHO
+            or not _valid_deal(hands)):
         return []
     try:
         d = Deal(_pbn(hands))
@@ -151,20 +188,20 @@ def dd_play_line(hands, strain, declarer, lead=None):
 # ----------------------------------------------------------------- persistent cache (dir of files)
 def cache_key(hands, strain, declarer, lead=None):
     """A stable short key for (deal, contract-strain, declarer, opening lead). The deal is hashed
-    via its PBN so the same board at both tables (and across rebuilds) shares one entry."""
+    via its PBN so the same board at every table shares one entry."""
     raw = f"{_pbn(hands)}|{strain}|{declarer}|{(lead or '').upper()}"
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
 
 
 def _default_cache_dir():
-    return os.environ.get("BUTLER_DDCACHE") or os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "_ddcache")
+    return os.environ.get("DDLINE_CACHE") or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".ddcache")
 
 
 def _cached_json(kind, keyraw, compute, cache_dir=None):
     """Generic one-file-per-key cache (same discipline as line_for): return the cached object if
     present, else compute, store atomically and return. Falsy results are returned but never
-    stored — the engine may be off or the position transientnly unsolvable."""
+    stored — the engine may be off or the position transiently unsolvable."""
     cache_dir = cache_dir or _default_cache_dir()
     key = f"{kind}-{hashlib.sha1(keyraw.encode('utf-8')).hexdigest()[:16]}"
     path = os.path.join(cache_dir, key + ".json")
