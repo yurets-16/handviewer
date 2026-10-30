@@ -1,4 +1,4 @@
-import os, sys, tempfile, unittest
+import os, sys, tempfile, threading, unittest
 from urllib.parse import parse_qs
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "server"))
@@ -51,6 +51,22 @@ class Api(unittest.TestCase):
             self.assertEqual(ask(bad)["p"], [])
             self.assertFalse(ask(bad + "&played=").get("cards"))
             self.assertEqual(ask(bad + "&played=&line=1")["p"], [])
+
+    def test_cache(self):
+        cache = os.environ["DDLINE_CACHE"]
+        hands = {s.upper(): ddserver._parse_hand(parse_qs(DEAL)[s][0]) for s in "nesw"}
+        line = ddline.line_for(hands, "S", "N")
+        self.assertTrue(os.path.exists(os.path.join(cache, ddline.cache_key(hands, "S", "N") + ".json")))
+        # a cache hit must not wait for the solver lock (held here as if another request were solving)
+        with ddline._DDS_LOCK:
+            out = []
+            t = threading.Thread(target=lambda: out.append(ddline.line_for(hands, "S", "N")))
+            t.start(); t.join(5)
+            self.assertEqual(out, [line])
+        # an unusable continuation (the prefix is not a card East holds) is answered but not stored
+        before = set(os.listdir(cache))
+        self.assertEqual(ddline.line_from_for(hands, "S", "N", ["sa"]), [])
+        self.assertEqual(set(os.listdir(cache)), before)
 
     def test_bad_contract(self):
         self.assertEqual(ask(DEAL.replace("c=4s", "c=zz"))["p"], [])

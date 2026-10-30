@@ -23,16 +23,11 @@ dl a seat letter):
   GET /ddline?...&played=<k1,k2,...>&line=1      the DD-optimal continuation -> {"p": [...]}
 An unusable request (incomplete or illegal deal, bad contract) answers p=[] / cards={}, never 500.
 """
-import os, sys, re, json, argparse, threading
+import os, sys, re, json, argparse, traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import ddline
-
-# endplay's DDS engine is NOT thread-safe — concurrent solve_board calls corrupt its shared state
-# and abort the whole process. ThreadingHTTPServer serves requests in parallel, so serialise the
-# actual double-dummy work behind one lock. Each call is milliseconds, so throughput is unaffected.
-_DDS_LOCK = threading.Lock()
+import ddline        # serialises the (not thread-safe) DDS solves itself; cache hits run in parallel
 
 
 def _parse_hand(s):
@@ -90,11 +85,11 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         if u.path.rstrip("/").endswith("ddline") or u.path in ("", "/"):
             try:
-                with _DDS_LOCK:
-                    obj = compute(parse_qs(u.query, keep_blank_values=True))
+                obj = compute(parse_qs(u.query, keep_blank_values=True))
                 self._send(200, obj, cacheable=bool(obj.get("p") or obj.get("cards")))
-            except Exception as e:                          # never 500 the viewer into a broken state
-                self._send(200, {"p": [], "error": str(e)}, cacheable=False)
+            except Exception:                               # never 500 the viewer into a broken state;
+                traceback.print_exc()                       # the details go to the log, not the client
+                self._send(200, {"p": []}, cacheable=False)
         else:
             self._send(404, {"p": [], "error": "not found"}, cacheable=False)
 

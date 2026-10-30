@@ -65,8 +65,7 @@
   .call.pass{color:var(--dim)} .call.dbl{color:#ff9d5e;font-weight:700}
   .dd th,.dd td{text-align:center;padding:3px 7px;font-size:13px;border:1px solid var(--line)}
   .dd th{color:var(--dim);font-weight:600}
-  .dd td{cursor:pointer} .dd td.make{color:var(--accent);font-weight:700}
-  .dd td.lo{color:#5a6a80} .dd td:hover{background:#22334d}
+  .dd td.make{color:var(--accent);font-weight:700} .dd td.lo{color:#5a6a80}
   .par{margin-top:9px;font-size:13px;color:var(--dim)} .par b{color:var(--ink)}
   .pardecl{color:var(--gold)}
   .play{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
@@ -204,6 +203,10 @@ function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","s","e","w
 // opening a deal from a results page with its recorded play (pa=1) means the visitor asked
 // for that line, so start on it; otherwise the interactive tab is the useful default
 let SEQ=null, POS=0, PLAYMODE=ACTUAL?"dd":"ip", IP=null, HANDS=null, DECL="", LEADER0="", TRUMP="NT";
+// NEED: tricks the contract needs. CAN_IP: "Play it yourself" needs a contract and a real declarer
+// seat (it starts from declarer's LHO); a baked p= line alone gets only the stepper.
+let NEED=7, CAN_IP=false, AUTO=null;
+function stopAuto(){ if(AUTO){ clearInterval(AUTO); AUTO=null; } }
 let bottomSeat="s"; const RHO={n:"w",w:"s",s:"e",e:"n"};   // rotate: which seat sits at the bottom
 function applyRotation(){                                   // place seats around the fixed centre
   const B=bottomSeat, pos={[B]:[2,3],[NEXT[B]]:[1,2],[PARTNER[B]]:[2,1],[RHO[B]]:[3,2]};   // bot,left,top,right
@@ -223,6 +226,14 @@ function winner(trick, trump){ const led=trick[0].card[0].toLowerCase(), tr=trum
 function cardEl(card, who){ return document.querySelector(`.card[data-c="${who}${card.toLowerCase()}"]`); }
 function cardHTML(card){ const su=(card||"")[0]?card[0].toLowerCase():"", r=(card||"").slice(1).toUpperCase();
   if(!SUIT[su]) return esc(card); return `${suitSym(su)}${r==="T"?"10":esc(r)}`; }
+// The api= URL comes from the link too, so its answers are as untrusted as any param: keep only
+// what really is a card ('c7','hT') or a trick count before any of it reaches the page.
+const CARD_RE=/^[shdc][2-9tjqka]$/i;
+function cardList(a){ return Array.isArray(a)?a.filter(c=>typeof c==="string"&&CARD_RE.test(c)):[]; }
+function evalOf(j){ const tricks=v=>Number.isInteger(v)&&v>=0&&v<=13;
+  if(!j||(j.side!=="ns"&&j.side!=="ew")||!tricks(j.best)||!j.cards||typeof j.cards!=="object") return null;
+  const cards={}; for(const [k,v] of Object.entries(j.cards)) if(CARD_RE.test(k)&&tricks(v)) cards[k.toLowerCase()]=v;
+  return Object.keys(cards).length?{side:j.side,best:j.best,cards}:null; }
 // the current trick laid out on the "table" (centre), each card at its player's seat direction
 // (following the rotation) — so plays stay visible even when the played hand is hidden face-down.
 function renderTableCards(trick, winSeat){
@@ -245,8 +256,10 @@ function render(){
   const vt={"-":"None",n:"N-S",e:"E-W",b:"All"}[vul]||"None";
   const isVul=s=>(vul==="b")||(vul==="n"&&(s==="n"||s==="s"))||(vul==="e"&&(s==="e"||s==="w"));
   // state for interactive play (#5): the four hands, the trump, declarer and opening leader
-  HANDS=hands; DECL=decl; LEADER0=leader||"";
+  // (no declarer: the stepper plays a baked line as buildSeq does, with South declaring)
+  HANDS=hands; DECL=NEXT[decl]?decl:"s"; LEADER0=leader||"";
   const tmpm=contract.match(/(NT|[shdc])/i); TRUMP=tmpm?tmpm[1].toUpperCase():"NT";
+  NEED=6+(parseInt(contract[0])||1); CAN_IP=!!(contract&&NEXT[decl]); if(!CAN_IP) PLAYMODE="dd";
 
   let comp=`<div class="table">`;
   for(const s of ["n","w","e","s"]){ const dl=s===dealer, ld=s===leader;
@@ -270,12 +283,12 @@ function render(){
   if(dd) panels+=`<div class="box"><h2>Double-dummy — makeable tricks</h2>${ddHTML(dd)}${par?`<div class="par">Par: <b>${fmtPar(par)}</b></div>`:""}</div>`;
   panels+=`</div>`;
 
-  SEQ=buildSeq((q.get("p")||"").split(/[ ,]+/).filter(Boolean));
+  SEQ=buildSeq(cardList((q.get("p")||"").split(/[ ,]+/)));
   const playbox=`<div class="box" id="playbox" style="margin-top:9px;display:none">
     <h2>Play</h2><div class="pl-body"></div></div>`;
 
   app.innerHTML=comp+panels+playbox+
-    `<div class="note">Four-colour suits · hover the makeable-tricks grid · ${ACTUAL?"the line shown is the table’s actual card play":"the line shown is double-dummy optimal, not the table’s actual play"}<br>Keys — line: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>space</b> auto · play: <b>⌫</b> undo, <b>R</b> restart, <b>B</b> best line, <b>C</b> claim</div>`;
+    `<div class="note">Four-colour suits · ${ACTUAL?"the line shown is the table’s actual card play":"the line shown is double-dummy optimal, not the table’s actual play"}<br>Keys — line: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>space</b> auto · play: <b>⌫</b> undo, <b>R</b> restart, <b>B</b> best line, <b>C</b> claim</div>`;
   document.getElementById("sub").innerHTML=(contract?fmtContract(contract):"")+(result?` ${esc(result)}`:"")+(decl?` by ${esc(decl.toUpperCase())}`:"");
   const back=document.getElementById("back"), b=q.get("back");
   // only http/https (resolved against this page) — blocks javascript:/data: back links
@@ -286,7 +299,7 @@ function render(){
   applyRotation();
   // show the play panel whenever the deal is playable (interactive needs only a contract + declarer;
   // the DD line loads lazily when its tab is opened). Baked p= also shows it.
-  if(SEQ || (q.get("c") && q.get("dl"))) showPlay(); else loadLine();
+  if(SEQ || CAN_IP) showPlay();
 }
 
 const PLAY_CONTROLS=`<div class="play"><button id="pf" title="restart">⏮</button><button id="pp">◀</button>
@@ -296,9 +309,10 @@ const PLAY_CONTROLS=`<div class="play"><button id="pf" title="restart">⏮</butt
 function showPlay(){ document.getElementById("playbox").style.display=""; renderPlay(); }
 function renderPlay(){
   const body=document.getElementById("playbox").querySelector(".pl-body");
+  stopAuto(); clearTimeout(autoTimer); if(IP) IP.solving=false;   // the old tab's timers must not outlive it
   clearBoard();
   const tbl=document.querySelector(".table"); if(tbl) tbl.classList.toggle("ipmode", PLAYMODE==="ip");
-  const tabs=`<div class="pmode">`+[["dd",ACTUAL?"Card play at the table":"Double-dummy line"],["ip","Play it yourself"]].map(([m,l])=>
+  const tabs=`<div class="pmode">`+[["dd",ACTUAL?"Card play at the table":"Double-dummy line"],["ip","Play it yourself"]].filter(([m])=>m!=="ip"||CAN_IP).map(([m,l])=>
       `<button class="pm${PLAYMODE===m?" on":""}" data-mode="${m}">${l}</button>`).join("")+`</div>`;
   if(PLAYMODE==="ip"){ body.innerHTML=tabs+IP_CONTROLS; wireInteractive(); }
   else if(SEQ){ body.innerHTML=tabs+PLAY_CONTROLS; wirePlay(); }
@@ -306,6 +320,16 @@ function renderPlay(){
   body.querySelectorAll(".pm").forEach(b=>b.onclick=()=>{
     if(PLAYMODE!==b.dataset.mode){ PLAYMODE=b.dataset.mode; renderPlay(); } });
 }
+
+// A request to the DD API for this deal: the link's deal params plus `extra` (played=, line=).
+function apiURL(extra){ const u=new URL(q.get("api"), location.href);
+  ["n","e","s","w","c","dl","l"].forEach(k=>{const v=q.get(k); if(v!==null) u.searchParams.set(k,v);});
+  for(const [k,v] of Object.entries(extra||{})) u.searchParams.set(k,v);
+  return u.toString(); }
+// the DD-optimal continuation from the interactive position ([] on any failure)
+async function fetchContinuation(){
+  try{ const r=await fetch(apiURL({played:IP.seq.join(","),line:"1"})); return cardList((await r.json()).p); }
+  catch(e){ return []; } }
 
 // Lazily fetch the DD line for the "Double-dummy line" tab when it wasn't baked into the link. The
 // caller (renderPlay's dd branch) has already shown a "Computing…" line, which this updates; on
@@ -315,10 +339,8 @@ async function loadLine(){
   const note=t=>{ const el=document.querySelector("#playbox .pl-body .pl-load"); if(el) el.textContent=t; };
   if(!api||!c||!dl){ note("Double-dummy line unavailable for this deal."); return; }
   try{
-    const u=new URL(api, location.href);
-    ["n","e","s","w","c","dl","l"].forEach(k=>{const v=q.get(k); if(v!==null) u.searchParams.set(k,v);});
-    const r=await fetch(u.toString()); const j=await r.json();
-    const cards=(j&&j.p)||[];
+    const r=await fetch(apiURL()); const j=await r.json();
+    const cards=cardList(j&&j.p);
     if(cards.length){ SEQ=buildSeq(cards); if(PLAYMODE==="dd") renderPlay(); }
     else note("Double-dummy line unavailable for this deal.");
   }catch(e){ note("Couldn’t load the double-dummy line."); }
@@ -339,26 +361,24 @@ function wirePlay(){
     for(let i=0; i+4<=POS; i+=4){ const w=winner(SEQ.slice(i,i+4),TRUMP);
       if(w==="n"||w==="s") ns++; else ew++; }
     const dside=(DECL==="n"||DECL==="s")?"ns":"ew", dt=dside==="ns"?ns:ew;
-    const need=6+(parseInt((q.get("c")||"1")[0])||1);
-    const done=POS>=SEQ.length&&SEQ.length%4===0, d=dt-need;
+    const done=POS>=SEQ.length&&SEQ.length%4===0, d=dt-NEED;
     document.getElementById('ptk').textContent=
       `card ${POS}/${SEQ.length} \u00b7 trick ${Math.max(1,Math.ceil(POS/4))}/${Math.ceil(SEQ.length/4)}`
       + ` \u00b7 N-S ${ns} \u2013 E-W ${ew}`
       + (done ? ` \u00b7 declarer ${dt} (${d===0?"=":(d>0?"+"+d:d)})`
-              : ` \u00b7 declarer ${dt}, needs ${need}`);
+              : ` \u00b7 declarer ${dt}, needs ${NEED}`);
     document.getElementById('pp').disabled=POS===0; document.getElementById('pf').disabled=POS===0;
     document.getElementById('pn').disabled=POS>=SEQ.length; document.getElementById('pt').disabled=POS>=SEQ.length;
   };
   const step=n=>{ POS=Math.max(0,Math.min(SEQ.length,POS+n)); paint(); };
-  let auto=null;
   document.getElementById('pn').onclick=()=>step(1);
   document.getElementById('pp').onclick=()=>step(-1);
   document.getElementById('pf').onclick=()=>{POS=0;paint();};
   document.getElementById('pt').onclick=()=>step(Math.min(SEQ.length,(Math.floor(POS/4)+1)*4)-POS);
   document.getElementById('pa').onclick=function(){
-    if(auto){clearInterval(auto);auto=null;this.textContent="▶ auto";return;}
+    if(AUTO){stopAuto();this.textContent="▶ auto";return;}
     this.textContent="⏸ pause";
-    auto=setInterval(()=>{ if(POS>=SEQ.length){clearInterval(auto);auto=null;document.getElementById('pa').textContent="▶ auto";return;} step(1); },750);
+    AUTO=setInterval(()=>{ if(POS>=SEQ.length){stopAuto();document.getElementById('pa').textContent="▶ auto";return;} step(1); },750);
   };
   POS=0; paint();
 }
@@ -394,7 +414,7 @@ function ipRestore(s){ IP.rem={n:new Set(s.rem.n),e:new Set(s.rem.e),s:new Set(s
 function ipLegal(seat,key,trick){ if(!IP.rem[seat].has(key)) return false;
   if(!trick.length) return true; const led=trick[0].card[0]; if(key[0]===led) return true;
   for(const k of IP.rem[seat]) if(k[0]===led) return false; return true; }   // void in led suit -> anything
-function ipPlay(key){ if(IP.done) return;
+function ipPlay(key, paint=true){ if(IP.done||PLAYMODE!=="ip") return;
   const stale=IP.trick.length===4, eff=stale?[]:IP.trick, seat=IP.turn;      // a completed trick stays shown
   if(!ipLegal(seat,key,eff)) return;                                          // until the next card is led
   IP.hist.push(ipSnap());
@@ -407,7 +427,7 @@ function ipPlay(key){ if(IP.done) return;
     if(w==="n"||w==="s") IP.ns++; else IP.ew++;
     IP.leader=w; IP.turn=w; if(IP.ns+IP.ew===13) IP.done=true; }
   else IP.turn=NEXT[seat];
-  ipPaint(); }
+  if(paint) ipPaint(); }
 function ipPaint(){ clearBoard(); clearTimeout(autoTimer);
   const eff=IP.trick.length===4?[]:IP.trick;
   ["n","e","s","w"].forEach(s=>{ const el=document.querySelector('.seat.'+s);
@@ -426,10 +446,9 @@ function ipPaint(){ clearBoard(); clearTimeout(autoTimer);
   const th=document.getElementById('ipth'); if(th) th.innerHTML=ipHistoryHTML();
   renderTableCards(IP.trick, IP.trick.length===4?winner(IP.trick,TRUMP):null);
   const declSide=(DECL==="n"||DECL==="s")?"ns":"ew", dt=declSide==="ns"?IP.ns:IP.ew;
-  const need=6+(parseInt((q.get("c")||"1")[0])||1);
   const tk=document.getElementById('iptk');
-  if(IP.done){ const d=dt-need; tk.textContent=`Done · declarer ${dt} tricks (${d===0?"=":(d>0?"+"+d:d)}), needed ${need}`; }
-  else tk.textContent=`${NM[IP.turn]} to play · declarer ${dt}, needs ${need} · NS ${IP.ns}–EW ${IP.ew}`;
+  if(IP.done){ const d=dt-NEED; tk.textContent=`Done · declarer ${dt} tricks (${d===0?"=":(d>0?"+"+d:d)}), needed ${NEED}`; }
+  else tk.textContent=`${NM[IP.turn]} to play · declarer ${dt}, needs ${NEED} · NS ${IP.ns}–EW ${IP.ew}`;
   const u=document.getElementById('ipu'); if(u) u.disabled=IP.hist.length===0; ipSyncSolve();
   const fb=document.getElementById('ipfb'); if(fb) fb.textContent=IP.lastMsg||"";
   const dd0=document.getElementById('ipdd');
@@ -466,10 +485,9 @@ function ipClearDDV(){ document.querySelectorAll('.card .ddv').forEach(s=>s.remo
 function ipRenderDDV(){                                       // annotate the on-turn hand's legal cards
   ipClearDDV();
   if(!(ddsAuto||ddsOnce)||!IP||!IP.eval||IP.done||isHidden(IP.turn)) return;
-  const need=6+(parseInt((q.get("c")||"1")[0])||1);
   document.querySelectorAll(`.seat.${IP.turn} .card.legal`).forEach(el=>{
     const v=IP.eval.cards[el.getAttribute('data-c').slice(1)]; if(v==null) return;
-    const d=declTotal(v, IP.eval.side)-need;                  // contract result if this card is played
+    const d=declTotal(v, IP.eval.side)-NEED;                  // contract result if this card is played
     const s=document.createElement('sup'); s.className='ddv '+(d<0?'set':'made');
     s.textContent=d===0?'=':(d>0?'+'+d:''+d); el.appendChild(s); }); }
 function ipSyncDDSbtns(){ const a=document.getElementById('ddauto'); if(a) a.classList.toggle('on', ddsAuto);
@@ -479,7 +497,7 @@ function declTotal(sideTricks, side){                        // side's remaining
   const remaining=13-(IP.ns+IP.ew);
   return declWon+(side===declSide?sideTricks:(remaining-sideTricks)); }
 function ipShowEval(){ const dd=document.getElementById('ipdd'); if(!dd||IP.curOpt==null) return;
-  const need=6+(parseInt((q.get("c")||"1")[0])||1), df=IP.curOpt-need;
+  const df=IP.curOpt-NEED;
   dd.innerHTML=`Double-dummy from here: declarer makes <b>${IP.curOpt}</b> (${df===0?"=":(df>0?"+"+df:df)})`; }
 async function ipFetchEval(){
   const api=q.get("api"), dd=document.getElementById('ipdd');
@@ -488,14 +506,12 @@ async function ipFetchEval(){
   const forLen=IP.seq.length, tok=++ipEvalTok;
   if(IP.curOpt==null) dd.innerHTML='<span class="ipdim">computing double-dummy…</span>';
   try{
-    const u=new URL(api, location.href);
-    ["n","e","s","w","c","dl"].forEach(k=>{const v=q.get(k); if(v!==null) u.searchParams.set(k,v);});
-    u.searchParams.set("played", IP.seq.join(","));
-    const r=await fetch(u.toString()); const j=await r.json();
-    if(tok!==ipEvalTok) return;                             // a newer position superseded this fetch
-    if(!j||!j.cards||!Object.keys(j.cards).length){ if(IP.curOpt==null) dd.innerHTML=""; return; }
-    IP.eval={forLen,side:j.side,best:j.best,cards:j.cards};
-    const opt=declTotal(j.best,j.side);
+    const r=await fetch(apiURL({played:IP.seq.join(",")})); const j=await r.json();
+    if(tok!==ipEvalTok||PLAYMODE!=="ip") return;            // a newer position (or tab) superseded this fetch
+    const ev=evalOf(j);
+    if(!ev){ if(IP.curOpt==null) dd.innerHTML=""; return; }
+    IP.eval={forLen,...ev};
+    const opt=declTotal(ev.best,ev.side);
     if(IP.moveBy&&IP.prevOpt!=null){ const cost=Math.abs(opt-IP.prevOpt);   // shift in the optimal = what the card cost
       IP.lastMsg = cost>0 ? `▲ ${NM[IP.moveBy]} gave up ${cost} trick${cost>1?"s":""} vs. double-dummy` : "";
       IP.moveBy=null; const fb=document.getElementById('ipfb'); if(fb) fb.textContent=IP.lastMsg; }
@@ -532,13 +548,7 @@ async function ipBestLine(){
   if(IP.solving){ IP.solving=false; clearTimeout(autoTimer); ipSyncSolve(); return; }
   if(IP.done) return;
   IP.solving=true; ipSyncSolve(); clearTimeout(autoTimer);
-  const forLen=IP.seq.length; let line=[];
-  try{
-    const u=new URL(api, location.href);
-    ["n","e","s","w","c","dl"].forEach(k=>{const v=q.get(k); if(v!==null) u.searchParams.set(k,v);});
-    u.searchParams.set("played", IP.seq.join(",")); u.searchParams.set("line","1");
-    const r=await fetch(u.toString()); line=(await r.json()).p||[];
-  }catch(e){}
+  const forLen=IP.seq.length, line=await fetchContinuation();
   if(!IP.solving||IP.seq.length!==forLen){ IP.solving=false; clearTimeout(autoTimer); ipSyncSolve(); return; }
   let i=0;
   const step=()=>{ if(!IP.solving||IP.done||i>=line.length){ IP.solving=false; ipSyncSolve(); return; }
@@ -550,15 +560,9 @@ async function ipBestLine(){
 // claim: finish the hand double-dummy instantly (fetch the continuation, apply it all at once)
 async function ipClaim(){
   const api=q.get('api'); if(!api||IP.done||IP.solving) return;
-  IP.solving=true; const forLen=IP.seq.length; let line=[];
-  try{
-    const u=new URL(api, location.href);
-    ["n","e","s","w","c","dl"].forEach(k=>{const v=q.get(k); if(v!==null) u.searchParams.set(k,v);});
-    u.searchParams.set("played", IP.seq.join(",")); u.searchParams.set("line","1");
-    line=(await (await fetch(u.toString())).json()).p||[];
-  }catch(e){}
-  if(IP.seq.length===forLen){ for(const k of line){ if(IP.done) break; ipPlay(k); } }   // no repaint mid-loop
-  IP.solving=false; ipPaint();
+  IP.solving=true; const forLen=IP.seq.length, line=await fetchContinuation();
+  if(IP.solving&&IP.seq.length===forLen){ for(const k of line){ if(IP.done) break; ipPlay(k, false); } }   // paint once, below
+  IP.solving=false; if(PLAYMODE==="ip") ipPaint();
 }
 document.addEventListener('click',e=>{ if(PLAYMODE!=='ip'||!IP||IP.solving) return;
   const el=e.target.closest('.card.legal'); if(el) ipPlay(el.getAttribute('data-c').slice(1)); });
