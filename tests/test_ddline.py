@@ -44,6 +44,11 @@ class Api(unittest.TestCase):
         cont = ask(DEAL + "&played=dq&line=1")["p"]
         self.assertEqual(len(cont), 51)
 
+    def test_three_n_is_three_notrump(self):
+        nt = DEAL.replace("c=4s", "c=3nt")
+        self.assertTrue(ask(nt + "&played=")["cards"])
+        self.assertEqual(ask(DEAL.replace("c=4s", "c=3N") + "&played="), ask(nt + "&played="))
+
     def test_grid(self):
         self.assertEqual(ask(DEAL.split("&c=")[0] + "&grid=1")["dd"], "bbba922233bbba922233")
         self.assertEqual(ask(DEAL + "&grid=1")["dd"], "bbba922233bbba922233")   # a contract changes nothing

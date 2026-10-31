@@ -52,10 +52,10 @@ def compute(qs):
         return {"p": []}                                   # need all four hands
     if one("grid"):
         return {"p": [], "dd": ddline.grid_for(hands)}
-    m = re.match(r"(\d)(nt|[shdc])", one("c"), re.I)
+    m = re.match(r"(\d)(nt?|[shdc])", one("c"), re.I)
     if not m:
         return {"p": []}
-    strain = "NT" if m.group(2).upper() == "NT" else m.group(2).upper()
+    strain = "NT" if m.group(2).upper()[0] == "N" else m.group(2).upper()
     decl = one("dl").upper()[:1]
     # `played` present (even empty) => a mid-play DD evaluation for the position after those cards;
     # absent => the full opening-lead line (cached). keep_blank_values keeps an empty prefix (the

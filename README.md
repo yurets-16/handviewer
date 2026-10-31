@@ -48,7 +48,7 @@ Letters are case-insensitive. Only the hands are required.
 | `n` `e` `s` `w` | a hand: each suit letter followed by its ranks | `sA643hKJT8d92cAK3` |
 | `d`    | dealer (default `n`) | `e` |
 | `v`    | vulnerability: `-` none, `n` N-S, `e` E-W, `b` both | `b` |
-| `c`    | contract, with `x`/`xx` for doubled/redoubled | `4s`, `3nt`, `5dx` |
+| `c`    | contract, with `x`/`xx` for doubled/redoubled | `4s`, `3nt` (or `3n`), `5dx` |
 | `dl`   | declarer; with `c`, it turns on the play panel | `n` |
 | `r`    | result, shown as text next to the contract | `+1`, `=`, `-2` |
 | `b`    | board number | `12` |
