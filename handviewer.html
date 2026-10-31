@@ -412,6 +412,16 @@ async function fetchContinuation(){
     return first.concat(cardList((await r.json()).p)); }
   catch(e){ return []; } }
 
+// What the link's lead l= cost against double-dummy, on show from the start.
+async function leadCost(){ const lead=(q.get("l")||"").toLowerCase(), box=document.getElementById("playbox");
+  if(!API||!box||!CARD_RE.test(lead)||!q.get("c")||!q.get("dl")) return;
+  try{ const ev=evalOf(await (await fetch(apiURL({played:""}))).json()), v=ev&&ev.cards[lead];
+    if(v==null) return; const cost=ev.best-v;
+    box.querySelector("h2").insertAdjacentHTML("afterend",cost
+      ?`<div class="ipfb">▲ Lead ${cardHTML(lead)} gave up ${cost} trick${cost>1?"s":""} vs. double-dummy</div>`
+      :`<div class="ipdd">Lead ${cardHTML(lead)} is double-dummy best</div>`);
+  }catch(e){} }
+
 // Lazily fetch the DD line for the "Double-dummy line" tab when it wasn't baked into the link. The
 // caller (renderPlay's dd branch) has already shown a "Computing…" line, which this updates; on
 // success it stores SEQ and re-renders the stepper. The interactive tab never needs this.
@@ -687,7 +697,7 @@ document.addEventListener('keydown',e=>{
   if(ok) e.preventDefault();
 });
 render();
-findAPI();
+findAPI().then(leadCost);
 </script>
 </body>
 </html>
