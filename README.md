@@ -58,7 +58,7 @@ Letters are case-insensitive. Only the hands are required.
 | `p`    | a card play sequence from the opening lead, separated by commas or spaces | `h2,hq,h9,h6` |
 | `pa`   | `1` = the `p` line is the play at the table; otherwise it is labelled a double-dummy line | `1` |
 | `pl`   | who sat where: `name\|team` per seat in the order N, E, S, W, joined by `~` | `Ann\|Lions~Bob\|Tigers~…` |
-| `l`    | opening lead the API should start its DD line from | `c9` |
+| `l`    | opening lead the DD line starts from; ▶, best line and claim open with it too | `c9` |
 | `api`  | URL of the double-dummy API (see below); left out, the page tries `/api/ddline` on its own site; empty, the API stays off | `https://example.org/dd` |
 | `back` | URL for a "← back" link (http/https only) | `https://example.org/round/3` |
 

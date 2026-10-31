@@ -404,9 +404,12 @@ function apiURL(extra, base){ const u=new URL(base||API, location.href);
   ["n","e","s","w","c","dl","l"].forEach(k=>{const v=q.get(k); if(v!==null) u.searchParams.set(k,v);});
   for(const [k,v] of Object.entries(extra||{})) u.searchParams.set(k,v);
   return u.toString(); }
-// the DD-optimal continuation from the interactive position ([] on any failure)
+// the DD-optimal continuation from the interactive position ([] on any failure); from the start of
+// the hand it opens with the link's lead l=, if the hand on lead holds that card
 async function fetchContinuation(){
-  try{ const r=await fetch(apiURL({played:IP.seq.join(","),line:"1"})); return cardList((await r.json()).p); }
+  const lead=(q.get("l")||"").toLowerCase(), first=!IP.seq.length&&IP.rem[IP.turn].has(lead)?[lead]:[];
+  try{ const r=await fetch(apiURL({played:first.join(",")||IP.seq.join(","),line:"1"}));
+    return first.concat(cardList((await r.json()).p)); }
   catch(e){ return []; } }
 
 // Lazily fetch the DD line for the "Double-dummy line" tab when it wasn't baked into the link. The
