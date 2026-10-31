@@ -142,9 +142,9 @@ const NM={n:"North",e:"East",s:"South",w:"West"};
 const q=new URLSearchParams(location.search);
 // a= also comes run together, as in BBO's own handviewer links (ppp3NDppp, D and R for the doubles),
 // and such a link gives the contract nowhere else: put the calls in our form and read c= and dl=
-// out of them, so everything below sees an ordinary link. 3N in c= is the same shorthand.
+// out of them, so everything below sees an ordinary link. 3N and 3S x in c= are the same shorthand.
 (function readAuction(){
-  if(q.get("c")) q.set("c",q.get("c").replace(/^(\d)n(?!t)/i,"$1nt"));
+  if(q.get("c")) q.set("c",q.get("c").replace(/\s+/g,"").replace(/^(\d)n(?!t)/i,"$1nt"));
   const calls=(q.get("a")||"").replace(/\([^)]*\)/g,"").match(/[1-7](?:nt?|[cdhs])|xx|pass|[pxdr]/gi);
   if(!calls) return;
   let seat=(q.get("d")||"n").toLowerCase(), last="", dbl=""; if(!NM[seat]) seat="n";
