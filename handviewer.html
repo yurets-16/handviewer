@@ -335,7 +335,7 @@ function render(){
     <div class="tablecards">
       <span class="tc" data-pos="top"></span>
       <span class="tc" data-pos="left"></span>
-      <span class="ct">${contract?`${fmtContract(contract)}${result?` <span class="rslt">${esc(result)}</span>`:""}`:""}</span>
+      <span class="ct">${contract?`${fmtContract(contract)}${NM[decl]?`&nbsp;<span class="pardecl">${decl.toUpperCase()}</span>`:""}${result?` <span class="rslt">${esc(result)}</span>`:""}`:""}</span>
       <span class="tc" data-pos="right"></span>
       <span class="tc" data-pos="bottom"></span>
     </div></div></div>`;
