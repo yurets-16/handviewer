@@ -468,7 +468,7 @@ const IP_CONTROLS=`<div class="iptr"><span class="trl">You play</span>
     <button class="tr" data-you="def" title="you play both defenders; the double-dummy declares">defence</button>
     <button class="tr" id="trhide" title="hide the hands the double-dummy plays (dummy stays shown)">hide DD hands</button></div>
   <div class="play"><button id="ipu" title="one card back">◀</button>
-    <button id="ipf" title="one card forward, along the line you stepped back from">▶</button><button id="ipr">⟲ restart</button>
+    <button id="ipf" title="one card forward, along the line ahead or the double-dummy-optimal one">▶</button><button id="ipr">⟲ restart</button>
     <button id="ipbest" title="play out the double-dummy-optimal line from here to the end">best line ▶</button>
     <button id="ipclaim" title="claim — finish the hand double-dummy instantly and show the result">claim ✓</button>
     <button id="ddonce" title="show the double-dummy result of every card in the hand on turn, once">show DDS</button>
@@ -530,7 +530,7 @@ function ipPaint(){ clearBoard(); clearTimeout(autoTimer);
   if(IP.done){ const d=dt-NEED; tk.textContent=`Done · declarer ${dt} tricks (${d===0?"=":(d>0?"+"+d:d)}), needed ${NEED}`; }
   else tk.textContent=`${NM[IP.turn]} to play · declarer ${dt}, needs ${NEED} · NS ${IP.ns}–EW ${IP.ew}`;
   const u=document.getElementById('ipu'); if(u) u.disabled=IP.hist.length===0;
-  const f=document.getElementById('ipf'); if(f) f.disabled=!IP.redo.length; ipSyncSolve();
+  const f=document.getElementById('ipf'); if(f) f.disabled=!IP.redo.length&&(!API||IP.done); ipSyncSolve();
   const fb=document.getElementById('ipfb'); if(fb) fb.textContent=IP.lastMsg||"";
   const dd0=document.getElementById('ipdd');
   if(IP.curOpt!=null) ipShowEval(); else if(dd0) dd0.innerHTML="";
@@ -607,8 +607,7 @@ function wireInteractive(){ if(!IP) ipInit();
   // stepping through a line: while there are cards ahead (IP.redo) nothing plays by itself
   document.getElementById('ipu').onclick=()=>{ if(!IP.hist.length) return; const key=IP.seq[IP.seq.length-1];
     ipRestore(IP.hist.pop()); IP.redo.push(key); ipPaint(); };
-  document.getElementById('ipf').onclick=()=>{ if(!IP.redo.length) return; IP.solving=false;
-    ipPlay(IP.redo[IP.redo.length-1]); };
+  document.getElementById('ipf').onclick=ipForward;
   document.getElementById('ipr').onclick=()=>{ ddsOnce=false; clearTimeout(autoTimer); ipInit(); ipPaint(); };
   const bo=document.getElementById('ddonce'), ba=document.getElementById('ddauto'), bl=document.getElementById('ipbest'),
         bc=document.getElementById('ipclaim');
@@ -643,6 +642,15 @@ async function ipBestLine(){
     if(IP.solving&&!IP.done&&i<line.length) autoTimer=setTimeout(step, 430);
     else { IP.solving=false; ipSyncSolve(); } };
   step();
+}
+// ▶: the next card of the line ahead; with none ahead, the best line from here becomes that line
+async function ipForward(){
+  IP.solving=false; clearTimeout(autoTimer);
+  if(!IP.redo.length){ if(!API||IP.done) return;
+    const forLen=IP.seq.length, line=await fetchContinuation();
+    if(IP.seq.length!==forLen||IP.redo.length) return;
+    IP.redo=[...line].reverse(); }
+  if(IP.redo.length) ipPlay(IP.redo[IP.redo.length-1]); else ipSyncSolve();
 }
 // claim: finish the hand double-dummy instantly (fetch the continuation, apply it all at once)
 async function ipClaim(){
