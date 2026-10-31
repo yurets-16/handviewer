@@ -78,10 +78,10 @@ https://www.bridgebase.com/tools/handviewer.html?b=1&d=n&v=-&n=s--hKQT96dAT94cAT
 https://example.org/handviewer.html?b=1&d=n&v=-&n=s--hKQT96dAT94cAT86&…&a=ppp3NDppp
 ```
 
-`handviewer.svg` is a small square button for such a link, the four suits in the viewer's colours:
+`handviewer.svg` is a small square button for such a link, a spade with a play sign cut out of it:
 
 ```html
-<a href="/handviewer.html?…" target="_blank"><img src="/handviewer.svg" width="16" height="16" alt="View the hand"></a>
+<a href="/handviewer.html?…" target="_blank"><img src="/handviewer.svg" width="16" height="16" alt="Play the hand"></a>
 ```
 
 ## The double-dummy API
