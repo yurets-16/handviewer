@@ -148,6 +148,7 @@ const q=new URLSearchParams(location.search);
 (function readAuction(){
   if(q.get("c")) q.set("c",q.get("c").replace(/\s+/g,"").replace(/^(\d)n(?!t)/i,"$1nt"));
   if(q.get("r")) q.set("r",q.get("r").replace(/^ /,"+"));                     // r=+1 sent unescaped
+  if(q.get("l")) q.set("l",q.get("l").replace(/10$/,"t"));                    // l=c10 is ct
   const calls=(q.get("a")||"").replace(/\([^)]*\)/g,"").match(/[1-7](?:nt?|[cdhs])|xx|pass|[pxdr]/gi);
   if(!calls) return;
   let seat=(q.get("d")||"n").toLowerCase(), last="", dbl=""; if(!NM[seat]) seat="n";
@@ -634,7 +635,7 @@ function wireInteractive(){ if(!IP) ipInit();
     ba.onclick=()=>{ ddsAuto=!ddsAuto; ddsOnce=false; ipSyncDDSbtns(); ipRenderDDV(); };
     if(bl) bl.onclick=ipBestLine; if(bc) bc.onclick=ipClaim; }
   document.querySelectorAll('.tr[data-you]').forEach(b=>b.onclick=()=>{ IP.solving=false; youPlay=b.dataset.you; ipSyncTrainer(); ipPaint(); });
-  const th=document.getElementById('trhide'); if(th) th.onclick=()=>{ hideDD=!hideDD; ipSyncTrainer(); ipPaint(); };
+  const th=document.getElementById('trhide'); if(th) th.onclick=()=>{ IP.solving=false; hideDD=!hideDD; ipSyncTrainer(); ipPaint(); };
   ipSyncTrainer(); ipSyncDDSbtns(); ipPaint(); }
 function ipSyncTrainer(){
   document.querySelectorAll('.tr[data-you]').forEach(b=>b.classList.toggle('on', b.dataset.you===youPlay));
@@ -648,11 +649,12 @@ function ipSyncSolve(){ const b=document.getElementById('ipbest'); if(!b) return
 // and ▶ then goes on along the same line card by card.
 async function ipBestLine(){
   if(!API) return;
-  if(IP.solving){ IP.solving=false; clearTimeout(autoTimer); ipSyncSolve(); return; }
+  if(IP.solving){ IP.solving=false; ipPaint(); return; }
   if(IP.done) return;
   IP.solving=true; ipSyncSolve(); clearTimeout(autoTimer);
   const forLen=IP.seq.length, line=await fetchContinuation();
   if(!IP.solving||IP.seq.length!==forLen){ IP.solving=false; clearTimeout(autoTimer); ipSyncSolve(); return; }
+  if(!line.length){ IP.solving=false; ipPaint(); return; }
   IP.redo=[...line].reverse();
   let i=0;
   const step=()=>{ if(!IP.solving||IP.done||i>=line.length){ IP.solving=false; ipSyncSolve(); return; }
@@ -665,14 +667,15 @@ async function ipBestLine(){
 async function ipForward(){
   IP.solving=false; clearTimeout(autoTimer);
   if(!IP.redo.length){ if(!API||IP.done) return;
-    const forLen=IP.seq.length, line=await fetchContinuation();
-    if(IP.seq.length!==forLen||IP.redo.length) return;
+    const at=IP.seq.join(), line=await fetchContinuation();
+    if(IP.seq.join()!==at||IP.redo.length) return;
     IP.redo=[...line].reverse(); }
-  if(IP.redo.length) ipPlay(IP.redo[IP.redo.length-1]); else ipSyncSolve();
+  if(IP.redo.length) ipPlay(IP.redo[IP.redo.length-1]); else ipPaint();       // no line: the DD's turn comes back
 }
 // claim: finish the hand double-dummy instantly (fetch the continuation, apply it all at once)
 async function ipClaim(){
   if(!API||IP.done||IP.solving) return;
+  clearTimeout(autoTimer);
   IP.solving=true; const forLen=IP.seq.length, line=await fetchContinuation();
   if(IP.solving&&IP.seq.length===forLen){ for(const k of line){ if(IP.done) break; ipPlay(k, false); } }   // paint once, below
   IP.solving=false; if(PLAYMODE==="ip") ipPaint();

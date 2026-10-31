@@ -65,7 +65,7 @@ def compute(qs):
         if one("line"):                                    # DD-optimal continuation from this position
             return {"p": ddline.line_from_for(hands, strain, decl, prefix)}
         return ddline.eval_for(hands, strain, decl, prefix) or {"cards": {}}
-    lead = one("l").upper()
+    lead = one("l").upper().replace("10", "T")
     line = ddline.line_for(hands, strain, decl, lead or None)
     return {"p": line, "strain": strain, "declarer": decl, "lead": lead}
 

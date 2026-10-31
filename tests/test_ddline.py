@@ -44,6 +44,10 @@ class Api(unittest.TestCase):
         cont = ask(DEAL + "&played=dq&line=1")["p"]
         self.assertEqual(len(cont), 51)
 
+    def test_ten_in_the_lead(self):
+        self.assertEqual(ask(DEAL + "&l=ct")["p"][0], "cT")
+        self.assertEqual(ask(DEAL + "&l=C10"), ask(DEAL + "&l=ct"))
+
     def test_three_n_is_three_notrump(self):
         nt = DEAL.replace("c=4s", "c=3nt")
         self.assertTrue(ask(nt + "&played=")["cards"])
