@@ -34,8 +34,9 @@ pip install -r requirements.txt
 python server/ddserver.py --host 127.0.0.1 --port 8098
 ```
 
-and add `&api=http://127.0.0.1:8098/ddline` to the link. The API answers with
-`Access-Control-Allow-Origin: *`, so it may live on another host or port.
+The page looks for the API at `/api/ddline` on its own site, so behind a proxy at that path (see
+below) links need nothing more. Anywhere else, add `&api=http://127.0.0.1:8098/ddline` to the link.
+The API answers with `Access-Control-Allow-Origin: *`, so it may live on another host or port.
 
 ## Link parameters
 
@@ -52,12 +53,12 @@ Letters are case-insensitive. Only the hands are required.
 | `r`    | result, shown as text next to the contract | `+1`, `=`, `-2` |
 | `a`    | auction from the dealer, calls separated by `-` or `,`: `p`, `x`, `xx`, `1c` … `7nt` | `1nt-p-3nt-p-p-p` |
 | `dd`   | makeable tricks: 20 base-36 digits, five per seat in the order N, E, S, W, and within a seat NT, ♠, ♥, ♦, ♣ | `bbba922233bbba922233` |
-| `par`  | par: level, strain, optional declarer, then free text | `3ntn +460` |
+| `par`  | par: level, strain, optional declarer, then free text; left out, it is worked out from `dd`, `d` and `v` | `3ntn +460` |
 | `p`    | a card play sequence from the opening lead, separated by commas or spaces | `h2,hq,h9,h6` |
 | `pa`   | `1` = the `p` line is the play at the table; otherwise it is labelled a double-dummy line | `1` |
 | `pl`   | who sat where: `name\|team` per seat in the order N, E, S, W, joined by `~` | `Ann\|Lions~Bob\|Tigers~…` |
 | `l`    | opening lead the API should start its DD line from | `c9` |
-| `api`  | URL of the double-dummy API (see below) | `/api/ddline` |
+| `api`  | URL of the double-dummy API (see below); left out, the page tries `/api/ddline` on its own site; empty, the API stays off | `https://example.org/dd` |
 | `back` | URL for a "← back" link (http/https only) | `https://example.org/round/3` |
 
 Every value from the URL is escaped before it reaches the page, so links from untrusted sources

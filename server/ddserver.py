@@ -12,7 +12,7 @@ Run (from a venv that has endplay):
     python server/ddserver.py --host 127.0.0.1 --port 8098
 Then expose it and point the viewer at it: proxy a public path to this port in nginx, e.g.
     location = /api/ddline { proxy_pass http://127.0.0.1:8098/ddline; }
-and add  api=/api/ddline  to every viewer link.
+The viewer finds it at that path by itself; at any other, add  api=<its url>  to the viewer links.
 
 Requests (hands in the viewer's format s<spades>h<hearts>d<diamonds>c<clubs>, c like "3nt"/"4sx",
 dl a seat letter):

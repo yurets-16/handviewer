@@ -197,9 +197,53 @@ function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","s","e","w
     g+="</tr>"; });
   return g+"</table>"; }
 
+// ---- par, when the link gives the grid but no par= ----
+// Par is arithmetic on the makeable-tricks grid, no solver needed: from the dealer round the table
+// each seat outbids (as declarer, on its own line of the grid) or passes, a contract that fails is
+// doubled, and what both sides can force is par. Seats, not sides, take turns because when both
+// sides can make the same contract the one that gets there first has it.
+const PAR_STRAINS="cdhsn", PAR_GRID={n:0,s:1,h:2,d:3,c:4};   // bid order -> column of the dd= grid
+function contractScore(level, strain, tricks, vul){
+  const down=level+6-tricks;
+  if(down>0) return -(vul?300*down-100:down<4?200*down-100:300*down-400);
+  const per=strain==="c"||strain==="d"?20:30, base=per*level+(strain==="n"?10:0);
+  return base+per*(tricks-level-6)+(base>=100?(vul?500:300):50)
+    +(level===6?(vul?750:500):level===7?(vul?1500:1000):0); }
+function calcPar(dd, dealer, vul){
+  if(!/^[0-9a-d]{20}$/i.test(dd||"")) return "";
+  const seats="nesw", first=seats.indexOf(dealer), memo=new Map();
+  const isVul=s=>vul==="b"||(vul==="n"&&s%2===0)||(vul==="e"&&s%2===1);
+  const tricks=(s,b)=>parseInt(dd[s*5+PAR_GRID[PAR_STRAINS[b%5]]],36);
+  const score=(b,s)=>{ const v=contractScore((b/5|0)+1,PAR_STRAINS[b%5],tricks(s,b),isVul(s)); return s%2?-v:v; };
+  // best play from: highest bid b by seat owner, seat to act, passes since. Scores are NS's.
+  function best(b,owner,seat,passes){
+    if(passes===(b<0?4:3)) return b<0?{v:0,b:-1,s:0}:{v:score(b,owner),b,s:owner};
+    const key=(b+1)*256+owner*64+seat*16+passes; if(memo.has(key)) return memo.get(key);
+    const nx=(seat+1)%4, rival=b>=0&&(owner+seat)%2===1; let top=best(b,owner,nx,passes+1);
+    for(let j=b+1;j<35;j++){ const r=best(j,seat,nx,0);     // lowest bid wins a tie
+      // a rival takes a tie over passing, so the auction runs on to the contract nobody can move
+      // (2♥+1, not 1♥+2 that 2♣x-1 could still dispute); a side never raises itself for nothing
+      if(seat%2?r.v<top.v:r.v>top.v) top=r; else if(rival&&r.v===top.v&&top.b===b) top=r; }
+    memo.set(key,top); return top; }
+  const r=best(-1,0,first,0);
+  if(r.b<0) return "Passed out";
+  // partners take turns, so the level reached can hang on whose turn it was: name the lowest level
+  // with this score that no rival gains by outbidding, which is how par names a contract. A rival
+  // ahead of declarer in the rotation can also take that very bid first.
+  let bid=r.b, decl=r.s; const opp=[(r.s+1)%4,(r.s+3)%4], turn=s=>(s-first+4)%4;
+  const beaten=(b,p)=>{ for(let j=b;j<35;j++) for(const o of opp)
+    if((j>b||turn(o)<turn(p))&&(r.s%2?score(j,o)>r.v:score(j,o)<r.v)) return true; return false; };
+  search: for(let l=bid%5;l<35;l+=5) for(const p of [r.s,(r.s+2)%4])
+    if(score(l,p)===r.v&&!beaten(l,p)){ bid=l; decl=p; break search; }
+  const lvl=(bid/5|0)+1, st=PAR_STRAINS[bid%5], diff=tricks(decl,bid)-lvl-6;
+  return `${lvl}${st==="n"?"nt":st}${seats[decl]}${diff<0?"x"+diff:diff?"+"+diff:"="} NS ${r.v>0?"+":""}${r.v}`; }
+
 // ---- double-dummy play line (#4) ----
 // The line comes either baked into the link (p=...) or, lazily, from a small caching DD-line API
-// (api=... — computed once per board and cached, so it costs nothing to bake it into every link).
+// (computed once per board and cached). api= names that API and an empty api= turns it off; a link
+// without the param finds it at API_DEFAULT on this site, once the page is up (findAPI).
+const API_DEFAULT="/api/ddline";
+let API=q.get("api")||"";
 // opening a deal from a results page with its recorded play (pa=1) means the visitor asked
 // for that line, so start on it; otherwise the interactive tab is the useful default
 let SEQ=null, POS=0, PLAYMODE=ACTUAL?"dd":"ip", IP=null, HANDS=null, DECL="", LEADER0="", TRUMP="NT";
@@ -279,7 +323,7 @@ function render(){
 
   let panels=`<div class="panels">`;
   const auc=q.get("a"); if(auc) panels+=`<div class="box"><h2>Auction</h2>${auctionHTML(auc,dealer)}</div>`;
-  const dd=q.get("dd"); const par=q.get("par");
+  const dd=q.get("dd"); const par=q.get("par")||calcPar(dd,dealer,vul);
   if(dd) panels+=`<div class="box"><h2>Double-dummy — makeable tricks</h2>${ddHTML(dd)}${par?`<div class="par">Par: <b>${fmtPar(par)}</b></div>`:""}</div>`;
   panels+=`</div>`;
 
@@ -321,8 +365,18 @@ function renderPlay(){
     if(PLAYMODE!==b.dataset.mode){ PLAYMODE=b.dataset.mode; renderPlay(); } });
 }
 
+// A static install has nothing at API_DEFAULT, and an error page must not pass for the API: only
+// its own answer to an empty request ({"p":[]}) turns the double-dummy controls on.
+async function findAPI(){
+  if(q.has("api")||!q.get("c")||!q.get("dl")) return;    // nothing here would ask it anything
+  try{ const r=await fetch(API_DEFAULT), j=await r.json();
+    if(!r.ok||!j||!Array.isArray(j.p)) return;
+    API=API_DEFAULT;
+    const box=document.getElementById("playbox"); if(box&&box.style.display!=="none") renderPlay();
+  }catch(e){} }
+
 // A request to the DD API for this deal: the link's deal params plus `extra` (played=, line=).
-function apiURL(extra){ const u=new URL(q.get("api"), location.href);
+function apiURL(extra){ const u=new URL(API, location.href);
   ["n","e","s","w","c","dl","l"].forEach(k=>{const v=q.get(k); if(v!==null) u.searchParams.set(k,v);});
   for(const [k,v] of Object.entries(extra||{})) u.searchParams.set(k,v);
   return u.toString(); }
@@ -335,9 +389,9 @@ async function fetchContinuation(){
 // caller (renderPlay's dd branch) has already shown a "Computing…" line, which this updates; on
 // success it stores SEQ and re-renders the stepper. The interactive tab never needs this.
 async function loadLine(){
-  const api=q.get("api"), c=q.get("c"), dl=q.get("dl");
+  const c=q.get("c"), dl=q.get("dl");
   const note=t=>{ const el=document.querySelector("#playbox .pl-body .pl-load"); if(el) el.textContent=t; };
-  if(!api||!c||!dl){ note("Double-dummy line unavailable for this deal."); return; }
+  if(!API||!c||!dl){ note("Double-dummy line unavailable for this deal."); return; }
   try{
     const r=await fetch(apiURL()); const j=await r.json();
     const cards=cardList(j&&j.p);
@@ -467,7 +521,7 @@ function ipHistoryHTML(){                                   // compact scrollabl
       cur=w; trick=[]; } else cur=NEXT[cur]; }
   return out.length?`<span class="thlab">played</span>`+out.join(""):""; }
 // double-dummy from the current position (via the caching API): the optimal declarer total from
-// here, and — when you play an off-best card — how many tricks it just threw. Silent without api=.
+// here, and — when you play an off-best card — how many tricks it just threw. Silent without the API.
 let ipEvalTok=0, ddsAuto=false, ddsOnce=false;              // ddsAuto persists across restart; ddsOnce is per-hand
 // trainer: you play some seats, the double-dummy plays the rest (auto), optionally hiding its hands
 let youPlay='all', hideDD=false, autoTimer=null;
@@ -500,9 +554,9 @@ function ipShowEval(){ const dd=document.getElementById('ipdd'); if(!dd||IP.curO
   const df=IP.curOpt-NEED;
   dd.innerHTML=`Double-dummy from here: declarer makes <b>${IP.curOpt}</b> (${df===0?"=":(df>0?"+"+df:df)})`; }
 async function ipFetchEval(){
-  const api=q.get("api"), dd=document.getElementById('ipdd');
+  const dd=document.getElementById('ipdd');
   if(!dd||IP.solving) return;                              // during a best-line play-out, don't churn evals
-  if(!api||IP.done){ dd.innerHTML=""; return; }
+  if(!API||IP.done){ dd.innerHTML=""; return; }
   const forLen=IP.seq.length, tok=++ipEvalTok;
   if(IP.curOpt==null) dd.innerHTML='<span class="ipdim">computing double-dummy…</span>';
   try{
@@ -526,8 +580,8 @@ function wireInteractive(){ if(!IP) ipInit();
   document.getElementById('ipu').onclick=()=>{ if(IP.hist.length){ ipRestore(IP.hist.pop()); ipPaint(); } };
   document.getElementById('ipr').onclick=()=>{ ddsOnce=false; clearTimeout(autoTimer); ipInit(); ipPaint(); };
   const bo=document.getElementById('ddonce'), ba=document.getElementById('ddauto'), bl=document.getElementById('ipbest'),
-        bc=document.getElementById('ipclaim'), api=q.get('api');
-  if(!api){ [bo,ba,bl,bc].forEach(x=>{ if(x) x.style.display='none'; }); }          // DDS + solver need the eval API
+        bc=document.getElementById('ipclaim');
+  if(!API){ [bo,ba,bl,bc].forEach(x=>{ if(x) x.style.display='none'; }); }          // DDS + solver need the eval API
   else { bo.onclick=()=>{ ddsOnce=true; ipRenderDDV(); };
     ba.onclick=()=>{ ddsAuto=!ddsAuto; ddsOnce=false; ipSyncDDSbtns(); ipRenderDDV(); };
     if(bl) bl.onclick=ipBestLine; if(bc) bc.onclick=ipClaim; }
@@ -537,14 +591,14 @@ function wireInteractive(){ if(!IP) ipInit();
 function ipSyncTrainer(){
   document.querySelectorAll('.tr[data-you]').forEach(b=>b.classList.toggle('on', b.dataset.you===youPlay));
   const th=document.getElementById('trhide'); if(th){ th.classList.toggle('on', hideDD); th.style.display=youPlay==='all'?'none':''; }
-  const row=document.querySelector('.iptr'); if(row) row.style.display=q.get('api')?'':'none'; }   // trainer needs the eval API
+  const row=document.querySelector('.iptr'); if(row) row.style.display=API?'':'none'; }   // trainer needs the eval API
 function ipSyncSolve(){ const b=document.getElementById('ipbest'); if(!b) return;
   b.textContent=IP.solving?'⏹ stop':'best line ▶'; b.classList.toggle('on', IP.solving);
   b.disabled=IP.done&&!IP.solving; }
 // play out the DD-optimal line from the current position to the end (one API call for the whole
 // continuation, then animate it locally). Click again to stop; undo/restart/mode change also stop.
 async function ipBestLine(){
-  const api=q.get('api'); if(!api) return;
+  if(!API) return;
   if(IP.solving){ IP.solving=false; clearTimeout(autoTimer); ipSyncSolve(); return; }
   if(IP.done) return;
   IP.solving=true; ipSyncSolve(); clearTimeout(autoTimer);
@@ -559,7 +613,7 @@ async function ipBestLine(){
 }
 // claim: finish the hand double-dummy instantly (fetch the continuation, apply it all at once)
 async function ipClaim(){
-  const api=q.get('api'); if(!api||IP.done||IP.solving) return;
+  if(!API||IP.done||IP.solving) return;
   IP.solving=true; const forLen=IP.seq.length, line=await fetchContinuation();
   if(IP.solving&&IP.seq.length===forLen){ for(const k of line){ if(IP.done) break; ipPlay(k, false); } }   // paint once, below
   IP.solving=false; if(PLAYMODE==="ip") ipPaint();
@@ -588,6 +642,7 @@ document.addEventListener('keydown',e=>{
   if(ok) e.preventDefault();
 });
 render();
+findAPI();
 </script>
 </body>
 </html>
