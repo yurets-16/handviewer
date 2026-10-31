@@ -66,7 +66,7 @@ Every value from the URL is escaped before it reaches the page, so links from un
 are safe to open.
 
 Keyboard: in the line view ←/→ step, ↓ next trick, ↑ restart, space autoplay; when you play the
-hand yourself ⌫ undo, R restart, B best line, C claim.
+hand yourself ←/→ step (⌫ also steps back), R restart, B best line, C claim.
 
 ## Links in BBO's format
 

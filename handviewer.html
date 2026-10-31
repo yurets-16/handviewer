@@ -352,7 +352,7 @@ function render(){
     <h2>Play</h2><div class="pl-body"></div></div>`;
 
   app.innerHTML=comp+panels+playbox+
-    `<div class="note">Four-colour suits · ${ACTUAL?"the line shown is the table’s actual card play":"the line shown is double-dummy optimal, not the table’s actual play"}<br>Keys — line: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>space</b> auto · play: <b>⌫</b> undo, <b>R</b> restart, <b>B</b> best line, <b>C</b> claim</div>`;
+    `<div class="note">Four-colour suits · ${ACTUAL?"the line shown is the table’s actual card play":"the line shown is double-dummy optimal, not the table’s actual play"}<br>Keys — line: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>space</b> auto · play: <b>←</b>/<b>→</b> step, <b>R</b> restart, <b>B</b> best line, <b>C</b> claim</div>`;
   const bd=/^\d+$/.test(q.get("b")||"")?q.get("b"):"";                 // digits only: it reaches innerHTML
   if(bd) document.title=`Board ${bd} · Hand viewer`;
   document.getElementById("sub").innerHTML=(bd?`Board ${bd}${contract?" · ":""}`:"")+(contract?fmtContract(contract):"")+(result?` ${esc(result)}`:"")+(decl?` by ${esc(decl.toUpperCase())}`:"");
@@ -467,7 +467,8 @@ const IP_CONTROLS=`<div class="iptr"><span class="trl">You play</span>
     <button class="tr" data-you="decl" title="you play declarer + dummy; the double-dummy defends">declarer</button>
     <button class="tr" data-you="def" title="you play both defenders; the double-dummy declares">defence</button>
     <button class="tr" id="trhide" title="hide the hands the double-dummy plays (dummy stays shown)">hide DD hands</button></div>
-  <div class="play"><button id="ipu">↶ undo</button><button id="ipr">⟲ restart</button>
+  <div class="play"><button id="ipu" title="one card back">◀</button>
+    <button id="ipf" title="one card forward, along the line you stepped back from">▶</button><button id="ipr">⟲ restart</button>
     <button id="ipbest" title="play out the double-dummy-optimal line from here to the end">best line ▶</button>
     <button id="ipclaim" title="claim — finish the hand double-dummy instantly and show the result">claim ✓</button>
     <button id="ddonce" title="show the double-dummy result of every card in the hand on turn, once">show DDS</button>
@@ -481,7 +482,7 @@ const IP_CONTROLS=`<div class="iptr"><span class="trl">You play</span>
 function clearBoard(){ document.querySelectorAll('.card').forEach(c=>c.classList.remove('played','now','legal'));
   document.querySelectorAll('.seat').forEach(s=>s.classList.remove('toplay'));
   document.querySelectorAll('.card .ddv').forEach(s=>s.remove()); }
-function ipInit(){ IP={rem:{},trick:[],seq:[],leader:LEADER0,turn:LEADER0,ns:0,ew:0,hist:[],done:false,eval:null,curOpt:null,prevOpt:null,moveBy:null,lastMsg:"",solving:false};
+function ipInit(){ IP={rem:{},trick:[],seq:[],leader:LEADER0,turn:LEADER0,ns:0,ew:0,hist:[],redo:[],done:false,eval:null,curOpt:null,prevOpt:null,moveBy:null,lastMsg:"",solving:false};
   for(const s of ["n","e","s","w"]){ IP.rem[s]=new Set();
     for(const su of "shdc") for(const r of (HANDS[s][su]||"")) IP.rem[s].add(su+r.toLowerCase()); } }
 function ipSnap(){ return {rem:{n:[...IP.rem.n],e:[...IP.rem.e],s:[...IP.rem.s],w:[...IP.rem.w]},
@@ -495,6 +496,7 @@ function ipLegal(seat,key,trick){ if(!IP.rem[seat].has(key)) return false;
 function ipPlay(key, paint=true){ if(IP.done||PLAYMODE!=="ip") return;
   const stale=IP.trick.length===4, eff=stale?[]:IP.trick, seat=IP.turn;      // a completed trick stays shown
   if(!ipLegal(seat,key,eff)) return;                                          // until the next card is led
+  if(IP.redo[IP.redo.length-1]===key) IP.redo.pop(); else IP.redo=[];         // a different card leaves the line
   IP.hist.push(ipSnap());
   if(stale) IP.trick=[];
   IP.rem[seat].delete(key); IP.trick.push({card:key,who:seat}); IP.seq.push(key);
@@ -527,11 +529,12 @@ function ipPaint(){ clearBoard(); clearTimeout(autoTimer);
   const tk=document.getElementById('iptk');
   if(IP.done){ const d=dt-NEED; tk.textContent=`Done · declarer ${dt} tricks (${d===0?"=":(d>0?"+"+d:d)}), needed ${NEED}`; }
   else tk.textContent=`${NM[IP.turn]} to play · declarer ${dt}, needs ${NEED} · NS ${IP.ns}–EW ${IP.ew}`;
-  const u=document.getElementById('ipu'); if(u) u.disabled=IP.hist.length===0; ipSyncSolve();
+  const u=document.getElementById('ipu'); if(u) u.disabled=IP.hist.length===0;
+  const f=document.getElementById('ipf'); if(f) f.disabled=!IP.redo.length; ipSyncSolve();
   const fb=document.getElementById('ipfb'); if(fb) fb.textContent=IP.lastMsg||"";
   const dd0=document.getElementById('ipdd');
   if(IP.curOpt!=null) ipShowEval(); else if(dd0) dd0.innerHTML="";
-  if(!IP.done&&!IP.solving&&!isAuto(IP.turn)&&legalKeys.length===1){        // one legal card -> auto-play it
+  if(!IP.done&&!IP.solving&&!IP.redo.length&&!isAuto(IP.turn)&&legalKeys.length===1){   // one legal card -> auto-play it
     const only=legalKeys[0], forLen=IP.seq.length; clearTimeout(autoTimer);
     autoTimer=setTimeout(()=>{ if(IP.seq.length===forLen&&!IP.done&&!IP.solving) ipPlay(only); }, 360); }
   ipFetchEval(); }
@@ -579,9 +582,9 @@ function ipShowEval(){ const dd=document.getElementById('ipdd'); if(!dd||IP.curO
   dd.innerHTML=`Double-dummy from here: declarer makes <b>${IP.curOpt}</b> (${df===0?"=":(df>0?"+"+df:df)})`; }
 async function ipFetchEval(){
   const dd=document.getElementById('ipdd');
-  if(!dd||IP.solving) return;                              // during a best-line play-out, don't churn evals
+  const tok=++ipEvalTok; if(!dd||IP.solving) return;       // during a best-line play-out, don't churn evals
   if(!API||IP.done){ dd.innerHTML=""; return; }
-  const forLen=IP.seq.length, tok=++ipEvalTok;
+  const forLen=IP.seq.length;
   if(IP.curOpt==null) dd.innerHTML='<span class="ipdim">computing double-dummy…</span>';
   try{
     const r=await fetch(apiURL({played:IP.seq.join(",")})); const j=await r.json();
@@ -594,14 +597,18 @@ async function ipFetchEval(){
       IP.lastMsg = cost>0 ? `▲ ${NM[IP.moveBy]} gave up ${cost} trick${cost>1?"s":""} vs. double-dummy` : "";
       IP.moveBy=null; const fb=document.getElementById('ipfb'); if(fb) fb.textContent=IP.lastMsg; }
     IP.curOpt=opt; ipShowEval(); ipRenderDDV();
-    if(isAuto(IP.turn)&&!IP.done&&!IP.solving){             // this seat is the DD's — it plays after a beat
+    if(isAuto(IP.turn)&&!IP.done&&!IP.solving&&!IP.redo.length){   // this seat is the DD's — it plays after a beat
       const forLen=IP.seq.length; clearTimeout(autoTimer);
       autoTimer=setTimeout(()=>{ if(IP.seq.length!==forLen||IP.done||!isAuto(IP.turn)||!IP.eval) return;
         const best=Object.keys(IP.eval.cards).find(k=>IP.eval.cards[k]===IP.eval.best);
         if(best) ipPlay(best); }, 650); }
   }catch(e){ if(tok===ipEvalTok&&IP.curOpt==null) dd.innerHTML=""; } }
 function wireInteractive(){ if(!IP) ipInit();
-  document.getElementById('ipu').onclick=()=>{ if(IP.hist.length){ ipRestore(IP.hist.pop()); ipPaint(); } };
+  // stepping through a line: while there are cards ahead (IP.redo) nothing plays by itself
+  document.getElementById('ipu').onclick=()=>{ if(!IP.hist.length) return; const key=IP.seq[IP.seq.length-1];
+    ipRestore(IP.hist.pop()); IP.redo.push(key); ipPaint(); };
+  document.getElementById('ipf').onclick=()=>{ if(!IP.redo.length) return; IP.solving=false;
+    ipPlay(IP.redo[IP.redo.length-1]); };
   document.getElementById('ipr').onclick=()=>{ ddsOnce=false; clearTimeout(autoTimer); ipInit(); ipPaint(); };
   const bo=document.getElementById('ddonce'), ba=document.getElementById('ddauto'), bl=document.getElementById('ipbest'),
         bc=document.getElementById('ipclaim');
@@ -620,7 +627,8 @@ function ipSyncSolve(){ const b=document.getElementById('ipbest'); if(!b) return
   b.textContent=IP.solving?'⏹ stop':'best line ▶'; b.classList.toggle('on', IP.solving);
   b.disabled=IP.done&&!IP.solving; }
 // play out the DD-optimal line from the current position to the end (one API call for the whole
-// continuation, then animate it locally). Click again to stop; undo/restart/mode change also stop.
+// continuation, then animate it locally). Click again to stop; ◀/▶/restart/mode change also stop,
+// and ▶ then goes on along the same line card by card.
 async function ipBestLine(){
   if(!API) return;
   if(IP.solving){ IP.solving=false; clearTimeout(autoTimer); ipSyncSolve(); return; }
@@ -628,6 +636,7 @@ async function ipBestLine(){
   IP.solving=true; ipSyncSolve(); clearTimeout(autoTimer);
   const forLen=IP.seq.length, line=await fetchContinuation();
   if(!IP.solving||IP.seq.length!==forLen){ IP.solving=false; clearTimeout(autoTimer); ipSyncSolve(); return; }
+  IP.redo=[...line].reverse();
   let i=0;
   const step=()=>{ if(!IP.solving||IP.done||i>=line.length){ IP.solving=false; ipSyncSolve(); return; }
     ipPlay(line[i++]);
@@ -644,8 +653,8 @@ async function ipClaim(){
 }
 document.addEventListener('click',e=>{ if(PLAYMODE!=='ip'||!IP||IP.solving) return;
   const el=e.target.closest('.card.legal'); if(el) ipPlay(el.getAttribute('data-c').slice(1)); });
-// keyboard: DD-line ← → step, ↓ trick, ↑/Home restart, space auto · interactive backspace undo,
-// R restart, B best line. Only while the play panel is up; clicks the same (visible, enabled) button.
+// keyboard: DD-line ← → step, ↓ trick, ↑/Home restart, space auto · interactive ← → step (backspace
+// and U too step back), R restart, B best line. Only while the play panel is up; clicks the same (visible, enabled) button.
 document.addEventListener('keydown',e=>{
   if(e.ctrlKey||e.metaKey||e.altKey) return;
   if(/^(input|textarea|select)$/i.test(e.target.tagName||'')) return;
@@ -660,7 +669,8 @@ document.addEventListener('keydown',e=>{
     else if(e.key===' '||e.code==='Space') ok=hit('pa');
   } else {
     const k=e.key.toLowerCase();
-    if(e.key==='Backspace'||k==='u') ok=hit('ipu');
+    if(e.key==='ArrowLeft'||e.key==='Backspace'||k==='u') ok=hit('ipu');
+    else if(e.key==='ArrowRight') ok=hit('ipf');
     else if(k==='r') ok=hit('ipr'); else if(k==='b') ok=hit('ipbest'); else if(k==='c') ok=hit('ipclaim');
   }
   if(ok) e.preventDefault();
