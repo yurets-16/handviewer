@@ -82,6 +82,8 @@
   .pmode .pm:hover{color:var(--ink)}
   .card.legal{cursor:pointer;box-shadow:inset 0 -2px 0 var(--accent);border-radius:3px}
   .card.legal:hover{background:var(--accent);color:#08331f;font-weight:700}
+  .card.leadcard{outline:1.5px solid var(--accent)} .card.leadcard.cost{outline-color:#ffab5e}
+  .seat.facedown .card.leadcard{outline:none}
   .seat.toplay{outline:2px solid var(--accent);outline-offset:2px;box-shadow:0 0 0 4px rgba(94,224,160,.12)}
   .table.ipmode .seat.onlead{outline:none} .table.ipmode .leadmark{display:none}
   .ipmsg{color:#66788f;font-size:11.5px;margin-top:9px;line-height:1.4}
@@ -145,6 +147,7 @@ const q=new URLSearchParams(location.search);
 // out of them, so everything below sees an ordinary link. 3N and 3S x in c= are the same shorthand.
 (function readAuction(){
   if(q.get("c")) q.set("c",q.get("c").replace(/\s+/g,"").replace(/^(\d)n(?!t)/i,"$1nt"));
+  if(q.get("r")) q.set("r",q.get("r").replace(/^ /,"+"));                     // r=+1 sent unescaped
   const calls=(q.get("a")||"").replace(/\([^)]*\)/g,"").match(/[1-7](?:nt?|[cdhs])|xx|pass|[pxdr]/gi);
   if(!calls) return;
   let seat=(q.get("d")||"n").toLowerCase(), last="", dbl=""; if(!NM[seat]) seat="n";
@@ -288,6 +291,7 @@ function winner(trick, trump){ const led=trick[0].card[0].toLowerCase(), tr=trum
     return su===tr?200+r:(su===led?100+r:r); };
   let best=trick[0]; for(const t of trick) if(v(t.card)>v(best.card)) best=t; return best.who; }
 function cardEl(card, who){ return document.querySelector(`.card[data-c="${who}${card.toLowerCase()}"]`); }
+function leadEl(){ const l=q.get("l")||""; return CARD_RE.test(l)?cardEl(l,LEADER0):null; }   // the l= card in its hand
 function cardHTML(card){ const su=(card||"")[0]?card[0].toLowerCase():"", r=(card||"").slice(1).toUpperCase();
   if(!SUIT[su]) return esc(card); return `${suitSym(su)}${r==="T"?"10":esc(r)}`; }
 // The api= URL comes from the link too, so its answers are as untrusted as any param: keep only
@@ -363,6 +367,7 @@ function render(){
   const rot=document.getElementById("rotate");
   if(rot){ rot.style.display=""; rot.onclick=()=>{ bottomSeat=NEXT[bottomSeat]; applyRotation(); }; }
   applyRotation();
+  const led=leadEl(); if(led) led.classList.add("leadcard");
   // show the play panel whenever the deal is playable (interactive needs only a contract + declarer;
   // the DD line loads lazily when its tab is opened). Baked p= also shows it.
   if(SEQ || CAN_IP) showPlay();
@@ -416,7 +421,7 @@ async function fetchContinuation(){
 async function leadCost(){ const lead=(q.get("l")||"").toLowerCase(), box=document.getElementById("playbox");
   if(!API||!box||!CARD_RE.test(lead)||!q.get("c")||!q.get("dl")) return;
   try{ const ev=evalOf(await (await fetch(apiURL({played:""}))).json()), v=ev&&ev.cards[lead];
-    if(v==null) return; const cost=ev.best-v;
+    if(v==null) return; const cost=ev.best-v, led=leadEl(); if(cost&&led) led.classList.add("cost");
     box.querySelector("h2").insertAdjacentHTML("afterend",cost
       ?`<div class="ipfb">▲ Lead ${cardHTML(lead)} gave up ${cost} trick${cost>1?"s":""} vs. double-dummy</div>`
       :`<div class="ipdd">Lead ${cardHTML(lead)} is double-dummy best</div>`);
