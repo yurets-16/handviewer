@@ -140,6 +140,21 @@ const RANKV={A:14,K:13,Q:12,J:11,T:10,"9":9,"8":8,"7":7,"6":6,"5":5,"4":4,"3":3,
 const NEXT={n:"e",e:"s",s:"w",w:"n"};
 const NM={n:"North",e:"East",s:"South",w:"West"};
 const q=new URLSearchParams(location.search);
+// a= also comes run together, as in BBO's own handviewer links (ppp3NDppp, D and R for the doubles),
+// and such a link gives the contract nowhere else: put the calls in our form and read c= and dl=
+// out of them, so everything below sees an ordinary link.
+(function readAuction(){
+  const calls=(q.get("a")||"").replace(/\([^)]*\)/g,"").match(/[1-7](?:nt?|[cdhs])|xx|pass|[pxdr]/gi);
+  if(!calls) return;
+  let seat=(q.get("d")||"n").toLowerCase(), last="", dbl=""; if(!NM[seat]) seat="n";
+  const first={}, side=s=>s==="n"||s==="s"?"ns":"ew";
+  const out=calls.map(raw=>{ const c=raw.toLowerCase(), m=c.match(/^([1-7])(n|[cdhs])/); let call="p";
+    if(m){ call=m[1]+(m[2]==="n"?"nt":m[2]); dbl=""; const k=side(seat)+m[2]; first[k]=first[k]||seat; last={call,k}; }
+    else if(c==="x"||c==="d"){ call="x"; dbl="x"; }
+    else if(c==="xx"||c==="r"){ call="xx"; dbl="xx"; }
+    seat=NEXT[seat]; return call; });
+  q.set("a",out.join("-"));
+  if(last&&!q.get("c")){ q.set("c",last.call+dbl); if(!q.get("dl")) q.set("dl",first[last.k]); } })();
 // pa=1 marks the baked p= line as the table's ACTUAL play (a results page hands it over that
 // way); without it a baked line is the double-dummy one, which is a different claim entirely
 const ACTUAL=q.get("pa")==="1";
@@ -188,6 +203,9 @@ function fmtCall(c){ const u=c.toUpperCase();
   const m=c.match(/^(\d)(NT|[shdc])$/i);
   return m?`${m[1]}${m[2].toUpperCase()==="NT"?"NT":suitSym(m[2])}`:esc(u); }
 
+let DEALER="n", VUL="-";
+function ddBox(dd){ const par=q.get("par")||calcPar(dd,DEALER,VUL);
+  return `<div class="box"><h2>Double-dummy — makeable tricks</h2>${ddHTML(dd)}${par?`<div class="par">Par: <b>${fmtPar(par)}</b></div>`:""}</div>`; }
 function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","s","e","w"];
   const IDX={n:0,e:1,s:2,w:3};   // dd is packed seat-major N,E,S,W — map each display row to its block
   let g=`<table class="dd"><tr><th></th>${strains.map(s=>`<th>${s==="NT"?"NT":suitSym(s)}</th>`).join("")}</tr>`;
@@ -202,7 +220,7 @@ function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","s","e","w
 // each seat outbids (as declarer, on its own line of the grid) or passes, a contract that fails is
 // doubled, and what both sides can force is par. Seats, not sides, take turns because when both
 // sides can make the same contract the one that gets there first has it.
-const PAR_STRAINS="cdhsn", PAR_GRID={n:0,s:1,h:2,d:3,c:4};   // bid order -> column of the dd= grid
+const DD_RE=/^[0-9a-d]{20}$/i, PAR_STRAINS="cdhsn", PAR_GRID={n:0,s:1,h:2,d:3,c:4};   // bid order -> column of the dd= grid
 function contractScore(level, strain, tricks, vul){
   const down=level+6-tricks;
   if(down>0) return -(vul?300*down-100:down<4?200*down-100:300*down-400);
@@ -210,7 +228,7 @@ function contractScore(level, strain, tricks, vul){
   return base+per*(tricks-level-6)+(base>=100?(vul?500:300):50)
     +(level===6?(vul?750:500):level===7?(vul?1500:1000):0); }
 function calcPar(dd, dealer, vul){
-  if(!/^[0-9a-d]{20}$/i.test(dd||"")) return "";
+  if(!DD_RE.test(dd||"")) return "";
   const seats="nesw", first=seats.indexOf(dealer), memo=new Map();
   const isVul=s=>vul==="b"||(vul==="n"&&s%2===0)||(vul==="e"&&s%2===1);
   const tricks=(s,b)=>parseInt(dd[s*5+PAR_GRID[PAR_STRAINS[b%5]]],36);
@@ -240,8 +258,9 @@ function calcPar(dd, dealer, vul){
 
 // ---- double-dummy play line (#4) ----
 // The line comes either baked into the link (p=...) or, lazily, from a small caching DD-line API
-// (computed once per board and cached). api= names that API and an empty api= turns it off; a link
-// without the param finds it at API_DEFAULT on this site, once the page is up (findAPI).
+// (computed once per board and cached), which also gives the makeable-tricks grid of a link without
+// dd=. api= names that API and an empty api= turns it off; a link without the param finds it at
+// API_DEFAULT on this site, once the page is up (findAPI).
 const API_DEFAULT="/api/ddline";
 let API=q.get("api")||"";
 // opening a deal from a results page with its recorded play (pa=1) means the visitor asked
@@ -323,8 +342,8 @@ function render(){
 
   let panels=`<div class="panels">`;
   const auc=q.get("a"); if(auc) panels+=`<div class="box"><h2>Auction</h2>${auctionHTML(auc,dealer)}</div>`;
-  const dd=q.get("dd"); const par=q.get("par")||calcPar(dd,dealer,vul);
-  if(dd) panels+=`<div class="box"><h2>Double-dummy — makeable tricks</h2>${ddHTML(dd)}${par?`<div class="par">Par: <b>${fmtPar(par)}</b></div>`:""}</div>`;
+  DEALER=dealer; VUL=vul;
+  if(q.get("dd")) panels+=ddBox(q.get("dd"));
   panels+=`</div>`;
 
   SEQ=buildSeq(cardList((q.get("p")||"").split(/[ ,]+/)));
@@ -333,7 +352,9 @@ function render(){
 
   app.innerHTML=comp+panels+playbox+
     `<div class="note">Four-colour suits · ${ACTUAL?"the line shown is the table’s actual card play":"the line shown is double-dummy optimal, not the table’s actual play"}<br>Keys — line: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>space</b> auto · play: <b>⌫</b> undo, <b>R</b> restart, <b>B</b> best line, <b>C</b> claim</div>`;
-  document.getElementById("sub").innerHTML=(contract?fmtContract(contract):"")+(result?` ${esc(result)}`:"")+(decl?` by ${esc(decl.toUpperCase())}`:"");
+  const bd=/^\d+$/.test(q.get("b")||"")?q.get("b"):"";                 // digits only: it reaches innerHTML
+  if(bd) document.title=`Board ${bd} · Hand viewer`;
+  document.getElementById("sub").innerHTML=(bd?`Board ${bd}${contract?" · ":""}`:"")+(contract?fmtContract(contract):"")+(result?` ${esc(result)}`:"")+(decl?` by ${esc(decl.toUpperCase())}`:"");
   const back=document.getElementById("back"), b=q.get("back");
   // only http/https (resolved against this page) — blocks javascript:/data: back links
   if(b){ try{ const url=new URL(b, location.href);
@@ -368,15 +389,17 @@ function renderPlay(){
 // A static install has nothing at API_DEFAULT, and an error page must not pass for the API: only
 // its own answer to an empty request ({"p":[]}) turns the double-dummy controls on.
 async function findAPI(){
-  if(q.has("api")||!q.get("c")||!q.get("dl")) return;    // nothing here would ask it anything
-  try{ const r=await fetch(API_DEFAULT), j=await r.json();
+  const wantGrid=!q.get("dd"), url=API||API_DEFAULT, known=!!API;
+  if(q.has("api")?!API||!wantGrid:!wantGrid&&!(q.get("c")&&q.get("dl"))) return;   // nothing to ask it
+  try{ const r=await fetch(wantGrid?apiURL({grid:"1"},url):url), j=await r.json();
     if(!r.ok||!j||!Array.isArray(j.p)) return;
-    API=API_DEFAULT;
-    const box=document.getElementById("playbox"); if(box&&box.style.display!=="none") renderPlay();
+    API=url;
+    if(wantGrid&&DD_RE.test(j.dd||"")) document.querySelector(".panels").insertAdjacentHTML("beforeend",ddBox(j.dd));
+    const box=document.getElementById("playbox"); if(!known&&box&&box.style.display!=="none") renderPlay();
   }catch(e){} }
 
 // A request to the DD API for this deal: the link's deal params plus `extra` (played=, line=).
-function apiURL(extra){ const u=new URL(API, location.href);
+function apiURL(extra, base){ const u=new URL(base||API, location.href);
   ["n","e","s","w","c","dl","l"].forEach(k=>{const v=q.get(k); if(v!==null) u.searchParams.set(k,v);});
   for(const [k,v] of Object.entries(extra||{})) u.searchParams.set(k,v);
   return u.toString(); }

@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 """Tiny caching DD play-line micro-API for the hand viewer.
 
-The viewer never needs this to show a deal: the auction and makeable-tricks grid travel in the
-link itself. This service only lights up the double-dummy parts of the play panel (the DD line,
-per-card DDS, best line, claim, playing against the double-dummy). It computes lazily (endplay)
+The viewer never needs this to show a deal: the auction travels in the link, and the makeable-tricks
+grid can too. This service supplies the grid when it does not, and lights up the double-dummy parts
+of the play panel (the DD line, per-card DDS, best line, claim, playing against the double-dummy). It computes lazily (endplay)
 and caches to disk (ddline.py), so the first view of a board costs one DDS solve chain
 (~10-200 ms) and every later view — any visitor — is a file read. Pure standard library + endplay.
 
@@ -16,6 +16,8 @@ The viewer finds it at that path by itself; at any other, add  api=<its url>  to
 
 Requests (hands in the viewer's format s<spades>h<hearts>d<diamonds>c<clubs>, c like "3nt"/"4sx",
 dl a seat letter):
+  GET /ddline?n=&e=&s=&w=&grid=1                 the deal's makeable-tricks grid, in the viewer's dd=
+      format -> {"p": [], "dd": "bbba922233bbba922233"} (no contract needed)
   GET /ddline?n=&e=&s=&w=&c=&dl=&l=<lead>        the full DD line from the opening lead ("c9",
       optional) -> {"p": ["c7","cA",...], "strain": "H", "declarer": "E", "lead": "C9"}
   GET /ddline?...&played=<k1,k2,...>             DD evaluation of the position after those cards
@@ -38,7 +40,7 @@ def _parse_hand(s):
         u = ch.upper()
         if u in "SHDC":
             cur = u
-        elif cur:
+        elif cur and u in ddline._RANKS:                   # a void comes as "s--h..." in BBO's links
             out[cur] += u
     return out
 
@@ -48,6 +50,8 @@ def compute(qs):
     hands = {seat.upper(): _parse_hand(one(seat)) for seat in ("n", "e", "s", "w")}
     if not all(any(hands[s].values()) for s in hands):
         return {"p": []}                                   # need all four hands
+    if one("grid"):
+        return {"p": [], "dd": ddline.grid_for(hands)}
     m = re.match(r"(\d)(nt|[shdc])", one("c"), re.I)
     if not m:
         return {"p": []}
@@ -86,7 +90,7 @@ class Handler(BaseHTTPRequestHandler):
         if u.path.rstrip("/").endswith("ddline") or u.path in ("", "/"):
             try:
                 obj = compute(parse_qs(u.query, keep_blank_values=True))
-                self._send(200, obj, cacheable=bool(obj.get("p") or obj.get("cards")))
+                self._send(200, obj, cacheable=bool(obj.get("p") or obj.get("cards") or obj.get("dd")))
             except Exception:                               # never 500 the viewer into a broken state;
                 traceback.print_exc()                       # the details go to the log, not the client
                 self._send(200, {"p": []}, cacheable=False)

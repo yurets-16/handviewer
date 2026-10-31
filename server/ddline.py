@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """Double-dummy optimal PLAY LINE for one deal+contract, with a persistent on-disk cache.
 
-The makeable-tricks grid and par can be baked into a viewer link (dd=, par=) at build time; this
-adds the actual card-by-card line: fix the opening lead, then let double-dummy play best for
+The makeable-tricks grid and par can be baked into a viewer link (dd=, par=) at build time, or the
+viewer can ask for the grid here (grid_for). This also gives the actual card-by-card line: fix the opening lead, then let double-dummy play best for
 everyone. It is far too expensive to precompute for every board+contract (~52 DDS solves each),
 so it is computed lazily — once per (deal, contract, lead) — and cached to disk, so the second
 request for the same board (any viewer) is a cheap file read.
@@ -16,7 +16,7 @@ import os, json, hashlib, tempfile, threading
 
 try:
     from endplay.types import Deal, Player, Denom
-    from endplay.dds import solve_board
+    from endplay.dds import solve_board, calc_dd_table
     HAVE_DDS = True
 except Exception:
     HAVE_DDS = False
@@ -196,6 +196,19 @@ def cache_key(hands, strain, declarer, lead=None):
     return _h(f"{_pbn(hands)}|{strain}|{declarer}|{(lead or '').upper()}")
 
 
+def dd_grid(hands):
+    """The makeable-tricks grid in the viewer's dd= format: base-36 digits, five per seat in the order
+    N, E, S, W, and within a seat NT, S, H, D, C. '' without the engine or for a broken deal."""
+    if not HAVE_DDS or not _valid_deal(hands):
+        return ""
+    try:
+        table = calc_dd_table(Deal(_pbn(hands)))
+        return "".join("0123456789abcd"[table[getattr(Denom, _STRAIN[st]), getattr(Player, _PLR[se])]]
+                       for se in "NESW" for st in ("NT", "S", "H", "D", "C"))
+    except Exception:
+        return ""
+
+
 def _default_cache_dir():
     return os.environ.get("DDLINE_CACHE") or os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".ddcache")
@@ -235,6 +248,15 @@ def _cached_json(key, compute, cache_dir=None):
 
 def _h(raw):
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+
+def grid_for(hands, cache_dir=None):
+    """Cache-aware dd_grid: one entry per deal, whatever the contract."""
+    if not _valid_deal(hands):
+        return ""
+    def compute():
+        grid = dd_grid(hands)
+        return {"dd": grid} if grid else None
+    return (_cached_json("grid-" + _h(_pbn(hands)), compute, cache_dir) or {}).get("dd", "")
 
 def eval_for(hands, strain, declarer, played, cache_dir=None):
     """Cache-aware dd_eval: the per-position evaluations are the viewer's most frequent request

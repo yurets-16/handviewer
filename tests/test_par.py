@@ -6,7 +6,7 @@ import json, os, re, shutil, subprocess, unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RUN = r"""
 const fs=require('fs'), [html,vectors]=process.argv.slice(1);
-const code=fs.readFileSync(html,'utf8').match(/const PAR_STRAINS[\s\S]*?\n(?=\/\/ ---- double-dummy play line)/)[0];
+const code=fs.readFileSync(html,'utf8').match(/const DD_RE[\s\S]*?\n(?=\/\/ ---- double-dummy play line)/)[0];
 const calcPar=new Function(code+';return calcPar;')();
 console.log(JSON.stringify(JSON.parse(fs.readFileSync(vectors,'utf8')).map(r=>calcPar(r.dd,r.d,r.v))));
 """

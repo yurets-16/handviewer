@@ -51,8 +51,9 @@ Letters are case-insensitive. Only the hands are required.
 | `c`    | contract, with `x`/`xx` for doubled/redoubled | `4s`, `3nt`, `5dx` |
 | `dl`   | declarer; with `c`, it turns on the play panel | `n` |
 | `r`    | result, shown as text next to the contract | `+1`, `=`, `-2` |
-| `a`    | auction from the dealer, calls separated by `-` or `,`: `p`, `x`, `xx`, `1c` … `7nt` | `1nt-p-3nt-p-p-p` |
-| `dd`   | makeable tricks: 20 base-36 digits, five per seat in the order N, E, S, W, and within a seat NT, ♠, ♥, ♦, ♣ | `bbba922233bbba922233` |
+| `b`    | board number | `12` |
+| `a`    | auction from the dealer, calls separated by `-` or `,`: `p`, `x`, `xx`, `1c` … `7nt`; run together as in BBO, with `D` and `R` for the doubles, it works too. Without `c`, the contract and declarer are read from it | `1nt-p-3nt-p-p-p`, `ppp3NDppp` |
+| `dd`   | makeable tricks: 20 base-36 digits, five per seat in the order N, E, S, W, and within a seat NT, ♠, ♥, ♦, ♣; left out, the page asks the API for them | `bbba922233bbba922233` |
 | `par`  | par: level, strain, optional declarer, then free text; left out, it is worked out from `dd`, `d` and `v` | `3ntn +460` |
 | `p`    | a card play sequence from the opening lead, separated by commas or spaces | `h2,hq,h9,h6` |
 | `pa`   | `1` = the `p` line is the play at the table; otherwise it is labelled a double-dummy line | `1` |
@@ -67,11 +68,29 @@ are safe to open.
 Keyboard: in the line view ←/→ step, ↓ next trick, ↑ restart, space autoplay; when you play the
 hand yourself ⌫ undo, R restart, B best line, C claim.
 
+## Links in BBO's format
+
+A link written for BBO's handviewer works here as it stands: `b`, `d`, `v`, `n`, `e`, `s`, `w` and
+`a` mean the same, `--` is a void, and only the address changes:
+
+```
+https://www.bridgebase.com/tools/handviewer.html?b=1&d=n&v=-&n=s--hKQT96dAT94cAT86&…&a=ppp3NDppp
+https://example.org/handviewer.html?b=1&d=n&v=-&n=s--hKQT96dAT94cAT86&…&a=ppp3NDppp
+```
+
+`handviewer.svg` is a small square button for such a link, the four suits in the viewer's colours:
+
+```html
+<a href="/handviewer.html?…" target="_blank"><img src="/handviewer.svg" width="16" height="16" alt="View the hand"></a>
+```
+
 ## The double-dummy API
 
 `server/ddserver.py` is a standard-library HTTP server over `server/ddline.py`, which drives the
 [DDS](https://github.com/dds-bridge/dds) solver through endplay. Hands use the viewer's format.
 
+- `GET /ddline?n=&e=&s=&w=&grid=1` returns the makeable-tricks grid, no contract needed:
+  `{"p": [], "dd": "bbba922233bbba922233"}`
 - `GET /ddline?n=&e=&s=&w=&c=&dl=&l=` returns the full DD line from the opening lead:
   `{"p": ["c7","cA",…], "strain": "H", "declarer": "E", "lead": "C9"}`
 - `GET /ddline?…&played=k1,k2,…` evaluates the position after those cards for the player on turn:

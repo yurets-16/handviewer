@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="View the hand">
+  <rect x=".5" y=".5" width="31" height="31" rx="6.5" fill="#182234" stroke="#2a3852"/>
+  <path transform="translate(9.5 9.6)" fill="#e9eef7" d="M0-5.6C1.2-3.8 5.2-1.6 5.2 1.2 5.2 3 3.8 3.9 2.6 3.9 1.8 3.9 1.1 3.5.6 2.9.7 4 1.2 4.9 2 5.6H-2C-1.2 4.9-.7 4-.6 2.9-1.1 3.5-1.8 3.9-2.6 3.9-3.8 3.9-5.2 3-5.2 1.2-5.2-1.6-1.2-3.8 0-5.6Z"/>
+  <path transform="translate(22.5 9.6)" fill="#ff6b6b" d="M0 5.2C-1.2 3.4-5.4 1-5.4-2-5.4-4-3.9-5-2.6-5-1.5-5-.6-4.4 0-3.4.6-4.4 1.5-5 2.6-5 3.9-5 5.4-4 5.4-2 5.4 1 1.2 3.4 0 5.2Z"/>
+  <path transform="translate(9.5 22.5)" fill="#ffab5e" d="M0-5.8 4.4 0 0 5.8-4.4 0Z"/>
+  <g transform="translate(22.5 22.4)" fill="#5fd39a">
+    <circle cy="-2.7" r="2.7"/><circle cx="-2.8" cy="1.1" r="2.6"/><circle cx="2.8" cy="1.1" r="2.6"/><circle cy=".2" r="1.2"/>
+    <path d="M-.7.5C-.7 3-1.3 4.6-2 5.6H2C1.3 4.6.7 3 .7.5Z"/>
+  </g>
+</svg>

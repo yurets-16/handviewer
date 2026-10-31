@@ -44,6 +44,17 @@ class Api(unittest.TestCase):
         cont = ask(DEAL + "&played=dq&line=1")["p"]
         self.assertEqual(len(cont), 51)
 
+    def test_grid(self):
+        self.assertEqual(ask(DEAL.split("&c=")[0] + "&grid=1")["dd"], "bbba922233bbba922233")
+        self.assertEqual(ask(DEAL + "&grid=1")["dd"], "bbba922233bbba922233")   # a contract changes nothing
+        self.assertEqual(ask(DEAL.replace("sJT85", "sJT8") + "&grid=1").get("dd", ""), "")
+
+    def test_a_void_written_as_dashes(self):
+        q = "n=s--hKQT96dAT94cAT86&e=sJ8754h7532d--cKJ72&s=sAT62h8d76532c953&w=sKQ93hAJ4dKQJ8cQ4"
+        self.assertEqual(ddserver._parse_hand("s--hKQT96")["S"], "")
+        self.assertEqual(len(ask(q + "&grid=1")["dd"]), 20)
+        self.assertTrue(ask(q + "&c=3nt&dl=w&played=")["cards"])
+
     def test_broken_deals_never_reach_dds(self):
         for bad in (DEAL.replace("w=sJT85", "w=sAT85"),     # duplicated card
                     DEAL.replace("w=sJT85", "w=sJT8"),      # twelve cards
