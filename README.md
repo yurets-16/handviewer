@@ -4,7 +4,8 @@ A bridge deal viewer in one static HTML file: the four hands around the table, t
 double-dummy makeable-tricks grid and par, and a play panel. The panel steps through a recorded or
 double-dummy line card by card, or lets you play the hand yourself, alone, against the double-dummy
 or blind. It also checks the table's play card by card, lists what every opening lead is worth and
-sets the deal as a "guess the lead" problem. The page speaks English and Russian.
+sets the deal as a "guess the lead" or "find the card" problem. A link can hold a whole set of deals
+with a score. Deals print on one sheet and save as SVG or PNG. The page speaks English and Russian.
 
 Everything the viewer shows comes from the URL, so any results site can link to it without a
 build step, a framework or a database. The double-dummy features of the play panel (the DD line,
@@ -63,6 +64,9 @@ Letters are case-insensitive. Only the hands are required.
 | `at`   | open "Play it yourself" with these cards played; the ⧉ button makes such a link | `c5,cq,c2` |
 | `pos`  | open the line at this step; the ⧉ button makes such a link | `17` |
 | `quiz` | `1` = open as "Guess the lead": only the hand on lead and the auction show until a card is picked | `1` |
+| `task` | `1` = open as "Find the card": the line stops at its key moments, where one card keeps the result | `1` |
+| `set`  | a JSON file on the same site with a set of deals (see below); alone in the link, it opens at `i` | `/sets/leads.json` |
+| `i`    | the place in the set, from 0 | `3` |
 | `blind` | `1` = open as declarer playing blind: your two hands only, no hints, a review after the last card | `1` |
 | `lang` | `ru` or `en`; left out, the browser's language decides | `ru` |
 | `api`  | URL of the double-dummy API (see below); left out, the page tries `/api/ddline` on its own site; empty, the API stays off | `https://example.org/dd` |
@@ -73,12 +77,30 @@ are safe to open.
 
 Keyboard: in both views ←/→ step, ↓ next trick, ↑ or Home first card, End last card. In the line
 view space is autoplay; when you play the hand yourself ⌫ also steps back, R restarts, B plays the
-best line, C claims.
+best line, C claims. In a set PgUp and PgDn change the deal, and Enter goes on from an answer.
 
 With the API, the opening leads are listed by what declarer then makes. When `pa=1` marks the play
 as the table's, every card is checked in turn: that is up to 48 requests per deal, three at a time.
 Playing blind, the defenders are the double-dummy: they see all four hands and never slip, so a line
 that needs a mistake from them will not work.
+
+"Find the card" walks the line, the table's or the double-dummy one, and asks the API about every
+position. A key moment is one where the best cards are a single card or touching ones and the hand
+holds something worse. Up to five are kept, the dearest first, and shown in play order. You see what
+the player on turn sees, that hand and dummy, until the card is found.
+
+## Sets of deals
+
+`set=` names a JSON file on the same site. `deals` holds link parameters, one string per deal;
+`mode` is `quiz`, `task` or `blind` and is optional, and a bare list of strings works too:
+
+```json
+{"title": "Leads of the week", "mode": "quiz", "deals": ["n=sA643hKJT8d92cAK3&e=…&c=4s&dl=n&l=d8", "n=…"]}
+```
+
+A bar at the top moves through the set and counts the deals you got right the first time: the best
+lead, every key moment at the first try, or a blind hand with no card given away. The score stays
+in this browser, under the set's address. A deal's own mode in its string wins over `mode`.
 
 ## Links in BBO's format
 
