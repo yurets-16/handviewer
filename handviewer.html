@@ -908,7 +908,7 @@ function humanSeats(){ const d=(q.get('dl')||'').toLowerCase();
   return null; }                                           // 'all' -> null (every seat is yours)
 function isAuto(seat){ const h=humanSeats(); return PLAYMODE!=="task" && !!h && !h.has(seat); }         // played by the DD
 function isHidden(seat){ if(PLAYMODE==="task") return veiled()&&seat!==IP.turn&&seat!==dummySeat()&&!(IP.turn===dummySeat()&&seat===DECL);
-  return (BLIND?!(IP&&IP.review):hideDD) && isAuto(seat) && seat!==dummySeat(); }    // dummy always shown
+  return (BLIND?!(IP&&IP.review):hideDD&&youPlay==='decl') && isAuto(seat) && seat!==dummySeat(); }    // dummy always shown; a defender sees three hands, the fourth is what is left
 function ipClearDDV(){ document.querySelectorAll('.card .ddv').forEach(s=>s.remove()); }
 function ipRenderDDV(){                                       // annotate the on-turn hand's legal cards
   ipClearDDV();
@@ -976,7 +976,7 @@ function wireInteractive(){
   ipSyncTrainer(); ipSyncDDSbtns(); ipPaint(); }
 function ipSyncTrainer(){
   document.querySelectorAll('.tr[data-you]').forEach(b=>b.classList.toggle('on', b.dataset.you===youPlay));
-  const th=document.getElementById('trhide'); if(th){ th.classList.toggle('on', hideDD); th.style.display=youPlay==='all'||BLIND?'none':''; }
+  const th=document.getElementById('trhide'); if(th){ th.classList.toggle('on', hideDD); th.style.display=youPlay!=='decl'||BLIND?'none':''; }
   const tb=document.getElementById('trblind'); if(tb) tb.classList.toggle('on', BLIND);
   const row=document.querySelector('.iptr'); if(row) row.style.display=API?'':'none'; }   // trainer needs the eval API
 function ipSyncSolve(){ const b=document.getElementById('ipbest'); if(!b) return;
