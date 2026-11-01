@@ -84,6 +84,18 @@
   .card.legal:hover{background:var(--accent);color:#08331f;font-weight:700}
   .card.leadcard{outline:1.5px solid var(--accent)} .card.leadcard.cost{outline-color:#ffab5e}
   .seat.facedown .card.leadcard{outline:none}
+  .quiz .ddbox,.quiz .leadsbox,.quiz #leadline,.quiz #audit,.quiz .rslt{display:none}
+  .quiz .card.leadcard{outline:none}
+  .quiz .seat.facedown .suit,.blind .seat.facedown .suit{visibility:hidden}
+  .blind .ipmsg:not(.blindonly){display:none}
+  .blind .ddbox,.blind .leadsbox,.blind #leadline,.blind #audit,.blind .rslt,.blind #ipdd,.blind #ipfb,
+  .blind #ipstart,.blind #ipu,.blind #ipf,.blind #iptrick,.blind #ipbest,.blind #ipclaim,.blind #ddonce,.blind #ddauto,.blind #plink{display:none}
+  .blindonly{display:none} .blind .blindonly{display:block}
+  #audit,#ipaudit{font-size:12.5px;color:var(--dim);margin-bottom:6px}
+  #audit button,#ipaudit button{background:none;border:0;color:#ffab5e;cursor:pointer;font:inherit;padding:0 3px}
+  #audit button:hover,#ipaudit button:hover{text-decoration:underline}
+  .ldrow{margin:2px 0;font-size:13px} .ldrow>b{display:inline-block;min-width:58px;color:var(--dim);font-weight:600}
+  .ldrow span.ld{margin-right:6px} .ldrow span.ld.l{outline:1.5px solid var(--accent);border-radius:3px;padding:0 1px}
   .seat.toplay{outline:2px solid var(--accent);outline-offset:2px;box-shadow:0 0 0 4px rgba(94,224,160,.12)}
   .table.ipmode .seat.onlead{outline:none} .table.ipmode .leadmark{display:none}
   .ipmsg{color:#66788f;font-size:11.5px;margin-top:9px;line-height:1.4}
@@ -140,8 +152,15 @@ const SUIT={s:{sym:"♠",c:"sp"},h:{sym:"♥",c:"he"},d:{sym:"♦",c:"di"},c:{sy
 const ORDER="shdc";
 const RANKV={A:14,K:13,Q:12,J:11,T:10,"9":9,"8":8,"7":7,"6":6,"5":5,"4":4,"3":3,"2":2};
 const NEXT={n:"e",e:"s",s:"w",w:"n"};
-const NM={n:"North",e:"East",s:"South",w:"West"};
 const q=new URLSearchParams(location.search);
+// Russian on lang=ru or in a Russian browser, English otherwise: seat letters and NT stay as they are
+const RU=/^ru/i.test(q.get("lang")||navigator.language||""), T=(en,ru)=>RU?ru:en;
+const NM=RU?{n:"Север",e:"Восток",s:"Юг",w:"Запад"}:{n:"North",e:"East",s:"South",w:"West"};
+function trk(n){ return RU?`${n} взят${n%10===1&&n!==11?"ку":n%10>=2&&n%10<=4&&(n<12||n>14)?"ки":"ок"}`:`${n} trick${n===1?"":"s"}`; }
+const gaveUp=n=>T(`gave up ${trk(n)} vs. double-dummy`,`отдал ${trk(n)} по double-dummy`);
+if(RU){ document.documentElement.lang="ru"; document.title=document.querySelector(".top h1").textContent="Просмотр сдачи";
+  document.getElementById("rotate").title="повернуть стол: следующая рука внизу";
+  document.getElementById("back").innerHTML="&larr; назад"; document.querySelector(".empty").textContent="В ссылке нет сдачи."; }
 // a= also comes run together, as in BBO's own handviewer links (ppp3NDppp, D and R for the doubles),
 // and such a link gives the contract nowhere else: put the calls in our form and read c= and dl=
 // out of them, so everything below sees an ordinary link. 3N and 3S x in c= are the same shorthand.
@@ -195,22 +214,24 @@ function fmtPar(par){ const m=(par||"").match(/^(\d)(NT|[shdc])([nesw])?(.*)$/i)
 
 function auctionHTML(a, dealer){
   const calls=a.split(/[-,]/).filter(x=>x!==""); const cols=["w","n","e","s"];
-  const head="<tr>"+cols.map(c=>`<th>${NM[c][0]}</th>`).join("")+"</tr>";
+  const head="<tr>"+cols.map(c=>`<th>${c.toUpperCase()}</th>`).join("")+"</tr>";
   const cells=[]; for(let i=0;i<cols.indexOf(dealer);i++) cells.push('<td style="color:#3a4a63">·</td>');
   for(const c of calls) cells.push(`<td>${fmtCall(c)}</td>`);
   while(cells.length%4) cells.push("<td></td>");
   let rows=""; for(let i=0;i<cells.length;i+=4) rows+="<tr>"+cells.slice(i,i+4).join("")+"</tr>";
   return `<table class="auc">${head}${rows}</table>`; }
 function fmtCall(c){ const u=c.toUpperCase();
-  if(u==="P"||u==="PASS") return '<span class="call pass">Pass</span>';
+  if(u==="P"||u==="PASS") return `<span class="call pass">${T("Pass","Пас")}</span>`;
   if(u==="X") return '<span class="call dbl">X</span>';
   if(u==="XX") return '<span class="call dbl">XX</span>';
   const m=c.match(/^(\d)(NT|[shdc])$/i);
   return m?`${m[1]}${m[2].toUpperCase()==="NT"?"NT":suitSym(m[2])}`:esc(u); }
 
-let DEALER="n", VUL="-";
-function ddBox(dd){ const par=q.get("par")||calcPar(dd,DEALER,VUL);
-  return `<div class="box"><h2>Double-dummy — makeable tricks</h2>${ddHTML(dd)}${par?`<div class="par">Par: <b>${fmtPar(par)}</b></div>`:""}</div>`; }
+let DEALER="n", VUL="-", PAR_NS=null;
+function ddBox(dd){ const own=calcPar(dd,DEALER,VUL), par=q.get("par")||own, m=own.match(/NS ([+-]?\d+)$/);
+  PAR_NS=own==="Passed out"?0:m?+m[1]:null;
+  const shown=par==="Passed out"?T(par,"Все пас"):fmtPar(par);
+  return `<div class="box ddbox"><h2>${T("Double-dummy — makeable tricks","Double-dummy — сколько взяток")}</h2>${ddHTML(dd)}${par?`<div class="par">${T("Par","Пар")}: <b>${shown}</b></div>`:""}</div>`; }
 function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","s","e","w"];
   const IDX={n:0,e:1,s:2,w:3};   // dd is packed seat-major N,E,S,W — map each display row to its block
   let g=`<table class="dd"><tr><th></th>${strains.map(s=>`<th>${s==="NT"?"NT":suitSym(s)}</th>`).join("")}</tr>`;
@@ -231,6 +252,12 @@ function contractScore(level, strain, tricks, vul){
   if(down>0) return -(vul?300*down-100:down<4?200*down-100:300*down-400);
   const per=strain==="c"||strain==="d"?20:30, base=per*level+(strain==="n"?10:0);
   return base+per*(tricks-level-6)+(base>=100?(vul?500:300):50)
+    +(level===6?(vul?750:500):level===7?(vul?1500:1000):0); }
+function bridgeScore(level, strain, dbl, tricks, vul){                 // dbl: 0, 1 doubled, 2 redoubled
+  const down=level+6-tricks, k=1<<dbl;
+  if(down>0) return -(dbl?(k/2)*(vul?300*down-100:down<4?200*down-100:300*down-400):down*(vul?100:50));
+  const per=strain==="c"||strain==="d"?20:30, base=(per*level+(strain==="n"?10:0))*k, over=tricks-level-6;
+  return base+over*(dbl?(vul?100:50)*k:per)+50*dbl+(base>=100?(vul?500:300):50)
     +(level===6?(vul?750:500):level===7?(vul?1500:1000):0); }
 function calcPar(dd, dealer, vul){
   if(!DD_RE.test(dd||"")) return "";
@@ -270,7 +297,7 @@ const API_DEFAULT="/api/ddline";
 let API=q.get("api")||"";
 // opening a deal from a results page with its recorded play (pa=1) means the visitor asked
 // for that line, so start on it; otherwise the interactive tab is the useful default
-let SEQ=null, POS=0, PLAYMODE=ACTUAL?"dd":"ip", IP=null, HANDS=null, DECL="", LEADER0="", TRUMP="NT";
+let BLIND=q.get("blind")==="1", SEQ=null, POS=Math.max(0,parseInt(q.get("pos"))||0), PLAYMODE=q.get("quiz")==="1"?"quiz":q.has("pos")||ACTUAL&&!q.has("at")&&!BLIND?"dd":"ip", IP=null, HANDS=null, DECL="", LEADER0="", TRUMP="NT";
 // NEED: tricks the contract needs. CAN_IP: "Play it yourself" needs a contract and a real declarer
 // seat (it starts from declarer's LHO); a baked p= line alone gets only the stepper.
 let NEED=7, CAN_IP=false, AUTO=null;
@@ -322,7 +349,7 @@ function render(){
   const vul=(q.get("v")||"-").toLowerCase();
   const contract=q.get("c")||"", result=q.get("r")||"";
   const decl=(q.get("dl")||"").toLowerCase(), leader=decl?NEXT[decl]:"";
-  const vt={"-":"None",n:"N-S",e:"E-W",b:"All"}[vul]||"None";
+  const vt={"-":T("None","нет"),n:"N-S",e:"E-W",b:T("All","все")}[vul]||T("None","нет");
   const isVul=s=>(vul==="b")||(vul==="n"&&(s==="n"||s==="s"))||(vul==="e"&&(s==="e"||s==="w"));
   // state for interactive play (#5): the four hands, the trump, declarer and opening leader
   // (no declarer: the stepper plays a baked line as buildSeq does, with South declaring)
@@ -334,10 +361,10 @@ function render(){
   for(const s of ["n","w","e","s"]){ const dl=s===dealer, ld=s===leader;
     comp+=`<div class="seat ${s} ${dl?'deal':''} ${ld?'onlead':''}">
       <div class="lbl"><b class="${isVul(s)?'vred':''}">${NM[s]}</b>
-        <span>${dl?'Dealer':''}${ld?'<span class="leadmark"> ◆ on lead</span>':''}</span></div>
+        <span>${dl?T('Dealer','Сдающий'):''}${ld?`<span class="leadmark"> ◆ ${T('on lead','атака')}</span>`:''}</span></div>
       ${PL&&PL[s]?`<div class="who"><b>${esc(PL[s].n)}</b>${PL[s].t?`<span>${esc(PL[s].t)}</span>`:""}</div>`:""}
       <div class="hand">${handHTML(hands[s], s)}</div></div>`; }
-  comp+=`<div class="mid"><div class="dlr">Dlr ${NM[dealer][0]} · Vul ${vt}</div>
+  comp+=`<div class="mid"><div class="dlr">${T("Dlr","Сд.")} ${dealer.toUpperCase()} · ${T("Vul","Зона")} ${vt}</div>
     <div class="tablecards">
       <span class="tc" data-pos="top"></span>
       <span class="tc" data-pos="left"></span>
@@ -347,20 +374,20 @@ function render(){
     </div></div></div>`;
 
   let panels=`<div class="panels">`;
-  const auc=q.get("a"); if(auc) panels+=`<div class="box"><h2>Auction</h2>${auctionHTML(auc,dealer)}</div>`;
+  const auc=q.get("a"); if(auc) panels+=`<div class="box"><h2>${T("Auction","Торговля")}</h2>${auctionHTML(auc,dealer)}</div>`;
   DEALER=dealer; VUL=vul;
   if(q.get("dd")) panels+=ddBox(q.get("dd"));
   panels+=`</div>`;
 
   SEQ=buildSeq(cardList((q.get("p")||"").split(/[ ,]+/)));
   const playbox=`<div class="box" id="playbox" style="margin-top:9px;display:none">
-    <h2>Play</h2><div class="pl-body"></div></div>`;
+    <h2>${T("Play","Розыгрыш")}</h2><div class="pl-body"></div></div>`;
 
   app.innerHTML=comp+panels+playbox+
-    `<div class="note">Four-colour suits · ${ACTUAL?"the line shown is the table’s actual card play":"the line shown is double-dummy optimal, not the table’s actual play"}<br>Keys — line: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>space</b> auto · play: <b>←</b>/<b>→</b> step, <b>R</b> restart, <b>B</b> best line, <b>C</b> claim</div>`;
+    `<div class="note">${T("Four-colour suits","Четырёхцветные масти")} · ${ACTUAL?T("the line shown is the table’s actual card play","показан реальный розыгрыш за столом"):T("the line shown is double-dummy optimal, not the table’s actual play","показана линия double-dummy, а не розыгрыш за столом")}<br>${T("Keys — both tabs: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>Home</b>/<b>End</b> start and end · line: <b>space</b> auto · play: <b>R</b> restart, <b>B</b> best line, <b>C</b> claim","Клавиши — обе вкладки: <b>←</b>/<b>→</b> шаг, <b>↓</b> взятка, <b>Home</b>/<b>End</b> начало и конец · линия: <b>пробел</b> авто · игра: <b>R</b> сначала, <b>B</b> лучшая линия, <b>C</b> клейм")}</div>`;
   const bd=/^\d+$/.test(q.get("b")||"")?q.get("b"):"";                 // digits only: it reaches innerHTML
-  if(bd) document.title=`Board ${bd} · Hand viewer`;
-  document.getElementById("sub").innerHTML=(bd?`Board ${bd}${contract?" · ":""}`:"")+(contract?fmtContract(contract):"")+(result?` ${esc(result)}`:"")+(decl?` by ${esc(decl.toUpperCase())}`:"");
+  if(bd) document.title=`${T("Board","Сдача")} ${bd} · ${T("Hand viewer","Просмотр сдачи")}`;
+  document.getElementById("sub").innerHTML=(bd?`${T("Board","Сдача")} ${bd}${contract?" · ":""}`:"")+(contract?fmtContract(contract):"")+(result?` <span class="rslt">${esc(result)}</span>`:"")+(decl?` ${T("by","играет")} ${esc(decl.toUpperCase())}`:"");
   const back=document.getElementById("back"), b=q.get("back");
   // only http/https (resolved against this page) — blocks javascript:/data: back links
   if(b){ try{ const url=new URL(b, location.href);
@@ -374,21 +401,29 @@ function render(){
   if(SEQ || CAN_IP) showPlay();
 }
 
-const PLAY_CONTROLS=`<div class="play"><button id="pf" title="restart">⏮</button><button id="pp">◀</button>
-    <button id="pn">▶</button><button id="pt">trick ▶▶</button>
-    <button id="pa">▶ auto</button><span class="tk" id="ptk"></span></div>
-  <div class="trick" id="ptv"></div>`;
+const LINK_BTN=`<button id="plink" title="${T("copy a link to this position","скопировать ссылку на эту позицию")}">⧉</button>`;
+const PLAY_CONTROLS=`<div class="play"><button id="pf" title="${T("restart","в начало")}">⏮</button><button id="pp">◀</button>
+    <button id="pn">▶</button><button id="pt">${T("trick","взятка")} ▶▶</button>
+    <button id="pa">▶ ${T("auto","авто")}</button>${LINK_BTN}<span class="tk" id="ptk"></span></div>
+  <div class="trick" id="ptv"></div><div class="ipfb" id="pfb"></div>`;
+// a link to this very position: at= the cards played yourself, pos= the step of the line
+function copyLink(btn,name,val){ const u=new URL(location.href);
+  ["at","pos","quiz","blind"].forEach(k=>u.searchParams.delete(k)); if(val) u.searchParams.set(name,val);
+  (navigator.clipboard?navigator.clipboard.writeText(u.href):Promise.reject()).then(()=>{
+    btn.textContent="✓"; setTimeout(()=>{ btn.textContent="⧉"; },1200); }).catch(()=>prompt(T("Link to this position","Ссылка на эту позицию"),u.href)); }
 function showPlay(){ document.getElementById("playbox").style.display=""; renderPlay(); }
 function renderPlay(){
   const body=document.getElementById("playbox").querySelector(".pl-body");
   stopAuto(); clearTimeout(autoTimer); if(IP) IP.solving=false;   // the old tab's timers must not outlive it
-  clearBoard();
+  clearBoard(); renderTableCards([],null);
+  document.body.classList.remove("quiz","blind"); document.querySelectorAll(".seat").forEach(s=>s.classList.remove("facedown"));
   const tbl=document.querySelector(".table"); if(tbl) tbl.classList.toggle("ipmode", PLAYMODE==="ip");
-  const tabs=`<div class="pmode">`+[["dd",ACTUAL?"Card play at the table":"Double-dummy line"],["ip","Play it yourself"]].filter(([m])=>m!=="ip"||CAN_IP).map(([m,l])=>
+  const tabs=`<div class="pmode">`+[["dd",ACTUAL?T("Card play at the table","Розыгрыш за столом"):T("Double-dummy line","Линия double-dummy")],["ip",T("Play it yourself","Сыграть самому")],["quiz",T("Guess the lead","Угадай атаку")]].filter(([m])=>m==="dd"||CAN_IP&&(m==="ip"||API||PLAYMODE==="quiz")).map(([m,l])=>
       `<button class="pm${PLAYMODE===m?" on":""}" data-mode="${m}">${l}</button>`).join("")+`</div>`;
   if(PLAYMODE==="ip"){ body.innerHTML=tabs+IP_CONTROLS; wireInteractive(); }
+  else if(PLAYMODE==="quiz") renderQuiz(body,tabs);
   else if(SEQ){ body.innerHTML=tabs+PLAY_CONTROLS; wirePlay(); }
-  else { body.innerHTML=tabs+'<div class="pl-load">Computing the double-dummy line…</div>'; loadLine(); }
+  else { body.innerHTML=tabs+`<div class="pl-load">${T("Computing the double-dummy line…","Считаю линию double-dummy…")}</div>`; loadLine(); }
   body.querySelectorAll(".pm").forEach(b=>b.onclick=()=>{
     if(PLAYMODE!==b.dataset.mode){ PLAYMODE=b.dataset.mode; renderPlay(); } });
 }
@@ -418,15 +453,86 @@ async function fetchContinuation(){
     return first.concat(cardList((await r.json()).p)); }
   catch(e){ return []; } }
 
+// Every opening lead with what declarer then makes, best for the defence first.
+let LEADS=null;
+const resText=d=>d===0?"=":(d>0?"+"+d:""+d);
+async function leadsBox(){ if(!API||!q.get("c")||!q.get("dl")) return;
+  try{ LEADS=evalOf(await (await fetch(apiURL({played:""}))).json()); }catch(e){}
+  if(!LEADS) return;
+  const by={}, l=(q.get("l")||"").toLowerCase();
+  for(const k of Object.keys(LEADS.cards).sort((a,b)=>ORDER.indexOf(a[0])-ORDER.indexOf(b[0])||RANKV[b[1].toUpperCase()]-RANKV[a[1].toUpperCase()]))
+    (by[13-LEADS.cards[k]]=by[13-LEADS.cards[k]]||[]).push(k);
+  const rows=Object.keys(by).map(Number).sort((a,b)=>a-b).map(t=>`<div class="ldrow"><b>${t} (${resText(t-NEED)})</b>${
+    by[t].map(k=>`<span class="ld${k===l?" l":""}">${cardHTML(k)}</span>`).join("")}</div>`).join("");
+  document.querySelector(".panels").insertAdjacentHTML("beforeend",
+    `<div class="box leadsbox"><h2>${T("Opening leads — what declarer makes","Атаки — сколько берёт разыгрывающий")}</h2>${rows}</div>`); }
 // What the link's lead l= cost against double-dummy, on show from the start.
-async function leadCost(){ const lead=(q.get("l")||"").toLowerCase(), box=document.getElementById("playbox");
-  if(!API||!box||!CARD_RE.test(lead)||!q.get("c")||!q.get("dl")) return;
-  try{ const ev=evalOf(await (await fetch(apiURL({played:""}))).json()), v=ev&&ev.cards[lead];
-    if(v==null) return; const cost=ev.best-v, led=leadEl(); if(cost&&led) led.classList.add("cost");
-    box.querySelector("h2").insertAdjacentHTML("afterend",cost
-      ?`<div class="ipfb">▲ Lead ${cardHTML(lead)} gave up ${cost} trick${cost>1?"s":""} vs. double-dummy</div>`
-      :`<div class="ipdd">Lead ${cardHTML(lead)} is double-dummy best</div>`);
-  }catch(e){} }
+function leadCost(){ const lead=(q.get("l")||"").toLowerCase(), box=document.getElementById("playbox");
+  if(!LEADS||!box||!CARD_RE.test(lead)||LEADS.cards[lead]==null) return;
+  const cost=LEADS.best-LEADS.cards[lead], led=leadEl(); if(cost&&led) led.classList.add("cost");
+  box.querySelector("h2").insertAdjacentHTML("afterend",cost
+    ?`<div class="ipfb" id="leadline">▲ ${T("Lead","Атака")} ${cardHTML(lead)} ${T(`gave up ${trk(cost)} vs. double-dummy`,`отдала ${trk(cost)} по double-dummy`)}</div>`
+    :`<div class="ipdd" id="leadline">${T("Lead","Атака")} ${cardHTML(lead)} ${T("is double-dummy best","лучшая по double-dummy")}</div>`); }
+// "Guess the lead": only the hand on lead and the auction show until a card is picked
+let QUIZ=null, quizBusy=false;
+function renderQuiz(body,tabs){
+  if(QUIZ){ const c=QUIZ.cost, card=cardHTML(QUIZ.key), l=(q.get("l")||"").toLowerCase();
+    const said=c==null?T("Double-dummy is not available here.","Double-dummy здесь недоступен."):c
+      ?`▲ ${card} ${T(`gives up ${trk(c)} vs. double-dummy`,`отдаёт ${trk(c)} по double-dummy`)}`
+      :`${card} ${T("is double-dummy best","лучшая атака по double-dummy")}`;
+    const table=CARD_RE.test(l)?`<div class="ipdd">${T("At the table","За столом")}: ${cardHTML(l)}</div>`:"";
+    body.innerHTML=tabs+`<div class="${c?"ipfb":"ipdd"}">${said}</div>${table}<div class="play"><button id="qplay">${T("Play on from this lead","Играть с этой атаки")} ▶</button></div>`;
+    document.getElementById("qplay").onclick=()=>{ q.set("at",QUIZ.key); IP=null; PLAYMODE="ip"; renderPlay(); };
+    return; }
+  body.innerHTML=tabs+`<div class="ipmsg">${T(`You are ${NM[LEADER0]}, on lead: click the card you would lead.`,`Вы ${NM[LEADER0]}, ваша атака: нажмите карту, которой пойдёте.`)}</div>`;
+  document.body.classList.add("quiz");
+  document.querySelectorAll(".seat").forEach(s=>s.classList.toggle("facedown",!s.classList.contains(LEADER0)));
+  document.querySelectorAll(`.seat.${LEADER0} .card`).forEach(c=>c.classList.add("legal"));
+  const st=document.querySelector(`.seat.${LEADER0}`); if(st) st.classList.add("toplay"); }
+async function quizPick(key){ if(quizBusy) return; quizBusy=true; await apiReady; let ev=LEADS;
+  if(!ev&&API) try{ ev=evalOf(await (await fetch(apiURL({played:""}))).json()); }catch(e){}
+  quizBusy=false; QUIZ={key,cost:ev&&ev.cards[key]!=null?ev.best-ev.cards[key]:null}; if(PLAYMODE==="quiz") renderPlay(); }
+// The table's play against double-dummy: what each card gave away. All 48 cards before the last
+// trick are one request each, a few at a time; the answers are cached by server and browser alike.
+let AUDIT=null, jumpPlay=null;
+async function auditCards(keys,say){ const costs=[], n=Math.min(keys.length,48); let next=0, asked=0;
+  const worker=async()=>{ while(next<n){ const i=next++;
+    for(let t=0;t<3;t++) try{ const ev=evalOf(await (await fetch(apiURL({played:keys.slice(0,i).join(",")}))).json()), v=ev&&ev.cards[keys[i]];
+      if(v!=null) costs[i]=ev.best-v; break; }catch(e){ await new Promise(r=>setTimeout(r,2000)); }   // the limit of the proxy
+    say(`${T("Checking the play","Проверяю розыгрыш")}… ${++asked}/${n}`); } };
+  await Promise.all([worker(),worker(),worker()]); return costs; }
+function auditHTML(costs,keys,who,mine){ const got=Object.keys(costs).length; if(!got) return "";
+  const errs=keys.map((k,i)=>i).filter(i=>costs[i]>0&&mine(i));
+  return (errs.length?`<b>${T("Where tricks went","Где ушли взятки")}:</b> `+errs.map(i=>
+      `<button data-at="${i+1}" title="${T("go to this card","к этой карте")}">${Math.floor(i/4)+1}: ${who[i].toUpperCase()} ${cardHTML(keys[i])} −${costs[i]}</button>`).join(" ")
+    :T("No card gave a trick away.","Ни одна карта не отдала взятку."))+(got<Math.min(keys.length,48)?` ${T("(not every card checked)","(проверены не все карты)")}`:""); }
+async function auditPlay(){ const box=document.getElementById("playbox");
+  if(AUDIT||!ACTUAL||!SEQ||!box||!API||!q.get("c")||!q.get("dl")) return;
+  box.querySelector("h2").insertAdjacentHTML("afterend",`<div id="audit"></div>`);
+  const el=document.getElementById("audit"), keys=SEQ.map(x=>x.card.toLowerCase());
+  AUDIT=await auditCards(keys,t=>{ el.textContent=t; });
+  const html=auditHTML(AUDIT,keys,SEQ.map(x=>x.who),()=>true);
+  if(!html){ el.remove(); return; }
+  el.innerHTML=html;
+  el.querySelectorAll("button").forEach(b=>b.onclick=()=>{ if(PLAYMODE!=="dd"){ PLAYMODE="dd"; renderPlay(); } jumpPlay(+b.dataset.at); }); }
+// playing blind: what the hand cost is only told at the end, and only for your own cards
+const veiled=()=>BLIND&&IP&&!IP.review;
+async function blindReview(){ const keys=[...IP.seq], who=IP.hist.map(h=>h.turn), run=IP.review={keys,html:""};
+  const say=h=>{ run.html=h; const el=document.getElementById("ipaudit"); if(el&&IP.review===run) el.innerHTML=h; };
+  const costs=await auditCards(keys,say); say(auditHTML(costs,keys,who,i=>!isAuto(who[i]))); }
+function ipJump(p){ while(IP.seq.length>p) ipBack();
+  while(IP.seq.length<p&&IP.redo.length){ const n=IP.seq.length; ipPlay(IP.redo[IP.redo.length-1],false); if(IP.seq.length===n) break; }
+  ipPaint(); }
+// the deal's result in points for NS at this many declarer tricks, against par and the table
+const signed=v=>(v>0?"+":"")+v;
+function scoreOf(tricks){ const m=(q.get("c")||"").match(/^(\d)(nt|[shdc])(x{0,2})/i); if(!m||!q.get("dl")) return null;
+  const ns=DECL==="n"||DECL==="s", s=bridgeScore(+m[1],m[2][0].toLowerCase(),m[3].length,tricks,VUL==="b"||VUL===(ns?"n":"e"));
+  return ns?s:-s; }
+function scoreLine(tricks){ const s=scoreOf(tricks); if(s==null) return "";
+  let out=` · NS ${signed(s)}`; if(PAR_NS!=null) out+=` · ${T("par","пар")} ${signed(PAR_NS)} (${signed(s-PAR_NS)})`;
+  const r=(q.get("r")||"").match(/^(=|[+-]\d+)$/);
+  if(r&&PLAYMODE==="ip") out+=` · ${T("at the table","за столом")} NS ${signed(scoreOf(NEED+(r[1]==="="?0:+r[1])))}`;
+  return out; }
 
 // Lazily fetch the DD line for the "Double-dummy line" tab when it wasn't baked into the link. The
 // caller (renderPlay's dd branch) has already shown a "Computing…" line, which this updates; on
@@ -434,13 +540,14 @@ async function leadCost(){ const lead=(q.get("l")||"").toLowerCase(), box=docume
 async function loadLine(){
   const c=q.get("c"), dl=q.get("dl");
   const note=t=>{ const el=document.querySelector("#playbox .pl-body .pl-load"); if(el) el.textContent=t; };
-  if(!API||!c||!dl){ note("Double-dummy line unavailable for this deal."); return; }
+  const none=T("Double-dummy line unavailable for this deal.","Линия double-dummy для этой сдачи недоступна.");
+  if(!API||!c||!dl){ note(none); return; }
   try{
     const r=await fetch(apiURL()); const j=await r.json();
     const cards=cardList(j&&j.p);
     if(cards.length){ SEQ=buildSeq(cards); if(PLAYMODE==="dd") renderPlay(); }
-    else note("Double-dummy line unavailable for this deal.");
-  }catch(e){ note("Couldn’t load the double-dummy line."); }
+    else note(none);
+  }catch(e){ note(T("Couldn’t load the double-dummy line.","Не удалось загрузить линию double-dummy.")); }
 }
 
 function wirePlay(){
@@ -458,12 +565,14 @@ function wirePlay(){
     for(let i=0; i+4<=POS; i+=4){ const w=winner(SEQ.slice(i,i+4),TRUMP);
       if(w==="n"||w==="s") ns++; else ew++; }
     const dside=(DECL==="n"||DECL==="s")?"ns":"ew", dt=dside==="ns"?ns:ew;
-    const done=POS>=SEQ.length&&SEQ.length%4===0, d=dt-NEED;
+    const done=POS>=SEQ.length&&SEQ.length%4===0, d=dt-NEED, dw=T("declarer","разыгрывающий");
     document.getElementById('ptk').textContent=
-      `card ${POS}/${SEQ.length} \u00b7 trick ${Math.max(1,Math.ceil(POS/4))}/${Math.ceil(SEQ.length/4)}`
+      `${T("card","карта")} ${POS}/${SEQ.length} \u00b7 ${T("trick","взятка")} ${Math.max(1,Math.ceil(POS/4))}/${Math.ceil(SEQ.length/4)}`
       + ` \u00b7 N-S ${ns} \u2013 E-W ${ew}`
-      + (done ? ` \u00b7 declarer ${dt} (${d===0?"=":(d>0?"+"+d:d)})`
-              : ` \u00b7 declarer ${dt}, needs ${NEED}`);
+      + (done ? ` \u00b7 ${dw} ${dt} (${resText(d)})`+(SEQ.length===52?scoreLine(dt):"")
+              : ` \u00b7 ${dw} ${dt}, ${T("needs","нужно")} ${NEED}`);
+    const lost=AUDIT&&POS?AUDIT[POS-1]:0;
+    document.getElementById('pfb').textContent=lost>0?`▲ ${NM[SEQ[POS-1].who]} ${gaveUp(lost)}`:"";
     document.getElementById('pp').disabled=POS===0; document.getElementById('pf').disabled=POS===0;
     document.getElementById('pn').disabled=POS>=SEQ.length; document.getElementById('pt').disabled=POS>=SEQ.length;
   };
@@ -473,35 +582,45 @@ function wirePlay(){
   document.getElementById('pf').onclick=()=>{POS=0;paint();};
   document.getElementById('pt').onclick=()=>step(Math.min(SEQ.length,(Math.floor(POS/4)+1)*4)-POS);
   document.getElementById('pa').onclick=function(){
-    if(AUTO){stopAuto();this.textContent="▶ auto";return;}
-    this.textContent="⏸ pause";
-    AUTO=setInterval(()=>{ if(POS>=SEQ.length){stopAuto();document.getElementById('pa').textContent="▶ auto";return;} step(1); },750);
+    const label=`▶ ${T("auto","авто")}`;
+    if(AUTO){stopAuto();this.textContent=label;return;}
+    this.textContent=`⏸ ${T("pause","пауза")}`;
+    AUTO=setInterval(()=>{ if(POS>=SEQ.length){stopAuto();document.getElementById('pa').textContent=label;return;} step(1); },750);
   };
-  POS=0; paint();
+  document.getElementById('plink').onclick=function(){ copyLink(this,"pos",POS?""+POS:""); };
+  jumpPlay=p=>{ POS=p; paint(); };
+  POS=Math.min(POS,SEQ.length); paint();
 }
 
 // ---- interactive play (#5): you choose every card for the hand on turn ----
-const IP_CONTROLS=`<div class="iptr"><span class="trl">You play</span>
-    <button class="tr" data-you="all" title="play all four hands yourself">all four</button>
-    <button class="tr" data-you="decl" title="you play declarer + dummy; the double-dummy defends">declarer</button>
-    <button class="tr" data-you="def" title="you play both defenders; the double-dummy declares">defence</button>
-    <button class="tr" id="trhide" title="hide the hands the double-dummy plays (dummy stays shown)">hide DD hands</button></div>
-  <div class="play"><button id="ipu" title="one card back">◀</button>
-    <button id="ipf" title="one card forward, along the line ahead or the double-dummy-optimal one">▶</button><button id="ipr">⟲ restart</button>
-    <button id="ipbest" title="play out the double-dummy-optimal line from here to the end">best line ▶</button>
-    <button id="ipclaim" title="claim — finish the hand double-dummy instantly and show the result">claim ✓</button>
-    <button id="ddonce" title="show the double-dummy result of every card in the hand on turn, once">show DDS</button>
-    <button id="ddauto" title="keep the DDS of the hand on turn shown every trick, until turned off">auto DDS</button>
+const IP_CONTROLS=`<div class="iptr"><span class="trl">${T("You play","Вы играете")}</span>
+    <button class="tr" data-you="all" title="${T("play all four hands yourself","играть за все четыре руки")}">${T("all four","все четыре")}</button>
+    <button class="tr" data-you="decl" title="${T("you play declarer + dummy; the double-dummy defends","вы за разыгрывающего и болвана, защищается double-dummy")}">${T("declarer","разыгрывающий")}</button>
+    <button class="tr" data-you="def" title="${T("you play both defenders; the double-dummy declares","вы за обоих защитников, разыгрывает double-dummy")}">${T("defence","защита")}</button>
+    <button class="tr" id="trhide" title="${T("hide the hands the double-dummy plays (dummy stays shown)","скрыть руки, которыми играет double-dummy (болван остаётся)")}">${T("hide DD hands","скрыть руки DD")}</button>
+    <button class="tr" id="trblind" title="${T("play declarer from your two hands; no hints until the last card","разыгрывать, видя только свои две руки; без подсказок до последней карты")}">${T("blind","вслепую")}</button></div>
+  <div class="play"><button id="ipstart" title="${T("back to the first card, keeping the line ahead","к первой карте, линия впереди сохраняется")}">⏮</button>
+    <button id="ipu" title="${T("one card back","на карту назад")}">◀</button>
+    <button id="ipf" title="${T("one card forward, along the line ahead or the double-dummy-optimal one","на карту вперёд: по линии впереди или по линии double-dummy")}">▶</button>
+    <button id="iptrick" title="${T("to the end of this trick","до конца взятки")}">${T("trick","взятка")} ▶▶</button>
+    <button id="ipr">⟲ ${T("restart","сначала")}</button>
+    <button id="ipbest" title="${T("play out the double-dummy-optimal line from here to the end","доиграть отсюда до конца по линии double-dummy")}">${T("best line","лучшая линия")} ▶</button>
+    <button id="ipclaim" title="${T("claim — finish the hand double-dummy instantly and show the result","клейм: сразу доиграть по double-dummy и показать итог")}">${T("claim","клейм")} ✓</button>
+    <button id="ddonce" title="${T("show the double-dummy result of every card in the hand on turn, once","один раз показать результат double-dummy для каждой карты руки на ходу")}">${T("show DDS","показать DDS")}</button>
+    <button id="ddauto" title="${T("keep the DDS of the hand on turn shown every trick, until turned off","показывать DDS руки на ходу на каждой взятке, пока не выключите")}">${T("auto DDS","авто DDS")}</button>
+    ${LINK_BTN}
     <span class="tk" id="iptk"></span></div>
   <div class="trick" id="iptv"></div>
   <div class="ipth" id="ipth"></div>
   <div class="ipdd" id="ipdd"></div>
   <div class="ipfb" id="ipfb"></div>
-  <div class="ipmsg">Click a card in the highlighted hand — follow-suit is enforced and the lead passes to the trick winner. The mark on a card is the double-dummy contract result if you play it (=/+1/-1) — green makes, red goes down.</div>`;
+  <div id="ipaudit"></div>
+  <div class="ipmsg blindonly">${T("Blind: you see your two hands only. The defenders play double-dummy, so they see all four hands and never slip. The review opens after the last card.","Вслепую: вы видите только свои две руки. Защита играет по double-dummy, то есть видит все четыре руки и не ошибается. Разбор откроется после последней карты.")}</div>
+  <div class="ipmsg">${T("Click a card in the highlighted hand — follow-suit is enforced and the lead passes to the trick winner. The mark on a card is the double-dummy contract result if you play it (=/+1/-1) — green makes, red goes down.","Нажмите карту в выделенной руке: вьювер следит за мастью, а ход переходит к взявшему взятку. Метка на карте — результат контракта по double-dummy, если сыграть её (=/+1/-1): зелёная — контракт выполнен, красная — не выполнен.")}</div>`;
 function clearBoard(){ document.querySelectorAll('.card').forEach(c=>c.classList.remove('played','now','legal'));
   document.querySelectorAll('.seat').forEach(s=>s.classList.remove('toplay'));
   document.querySelectorAll('.card .ddv').forEach(s=>s.remove()); }
-function ipInit(){ IP={rem:{},trick:[],seq:[],leader:LEADER0,turn:LEADER0,ns:0,ew:0,hist:[],redo:[],done:false,eval:null,curOpt:null,prevOpt:null,moveBy:null,lastMsg:"",solving:false};
+function ipInit(){ IP={rem:{},trick:[],seq:[],leader:LEADER0,turn:LEADER0,ns:0,ew:0,hist:[],redo:[],review:null,done:false,eval:null,curOpt:null,prevOpt:null,moveBy:null,lastMsg:"",solving:false};
   for(const s of ["n","e","s","w"]){ IP.rem[s]=new Set();
     for(const su of "shdc") for(const r of (HANDS[s][su]||"")) IP.rem[s].add(su+r.toLowerCase()); } }
 function ipSnap(){ return {rem:{n:[...IP.rem.n],e:[...IP.rem.e],s:[...IP.rem.s],w:[...IP.rem.w]},
@@ -527,7 +646,11 @@ function ipPlay(key, paint=true){ if(IP.done||PLAYMODE!=="ip") return;
     IP.leader=w; IP.turn=w; if(IP.ns+IP.ew===13) IP.done=true; }
   else IP.turn=NEXT[seat];
   if(paint) ipPaint(); }
-function ipPaint(){ clearBoard(); clearTimeout(autoTimer);
+function ipPaint(){ if(PLAYMODE!=="ip") return; clearBoard(); clearTimeout(autoTimer);
+  if(BLIND&&IP.done&&(!IP.review||IP.review.keys.join()!==IP.seq.join())) blindReview();
+  document.body.classList.toggle('blind',!!veiled());
+  const rv=document.getElementById('ipaudit');
+  if(rv) rv.innerHTML=IP.review&&IP.review.keys.join().startsWith(IP.seq.join())?IP.review.html:"";
   const eff=IP.trick.length===4?[]:IP.trick;
   ["n","e","s","w"].forEach(s=>{ const el=document.querySelector('.seat.'+s);
     if(el) el.classList.toggle('facedown', isHidden(s)); });                 // single-dummy: hide DD hands
@@ -546,10 +669,11 @@ function ipPaint(){ clearBoard(); clearTimeout(autoTimer);
   renderTableCards(IP.trick, IP.trick.length===4?winner(IP.trick,TRUMP):null);
   const declSide=(DECL==="n"||DECL==="s")?"ns":"ew", dt=declSide==="ns"?IP.ns:IP.ew;
   const tk=document.getElementById('iptk');
-  if(IP.done){ const d=dt-NEED; tk.textContent=`Done · declarer ${dt} tricks (${d===0?"=":(d>0?"+"+d:d)}), needed ${NEED}`; }
-  else tk.textContent=`${NM[IP.turn]} to play · declarer ${dt}, needs ${NEED} · NS ${IP.ns}–EW ${IP.ew}`;
-  const u=document.getElementById('ipu'); if(u) u.disabled=IP.hist.length===0;
-  const f=document.getElementById('ipf'); if(f) f.disabled=!IP.redo.length&&(!API||IP.done); ipSyncSolve();
+  if(IP.done){ const res=resText(dt-NEED); tk.textContent=T(`Done · declarer ${trk(dt)} (${res}), needed ${NEED}`,`Готово · разыгрывающий взял ${trk(dt)} (${res}), нужно ${NEED}`)+scoreLine(dt); }
+  else tk.textContent=T(`${NM[IP.turn]} to play · declarer ${dt}, needs ${NEED}`,`Ходит ${NM[IP.turn]} · разыгрывающий ${dt}, нужно ${NEED}`)+` · NS ${IP.ns}–EW ${IP.ew}`;
+  const noneAhead=!IP.redo.length&&(!API||IP.done);
+  ['ipu','ipstart'].forEach(id=>{ const b=document.getElementById(id); if(b) b.disabled=IP.hist.length===0; });
+  ['ipf','iptrick'].forEach(id=>{ const b=document.getElementById(id); if(b) b.disabled=noneAhead; }); ipSyncSolve();
   const fb=document.getElementById('ipfb'); if(fb) fb.textContent=IP.lastMsg||"";
   const dd0=document.getElementById('ipdd');
   if(IP.curOpt!=null) ipShowEval(); else if(dd0) dd0.innerHTML="";
@@ -562,15 +686,15 @@ function ipHistoryHTML(){                                   // compact scrollabl
   let cur=LEADER0, trick=[], out=[], n=0;
   for(const card of IP.seq){ trick.push({who:cur,card});
     if(trick.length===4){ const w=winner(trick,TRUMP); n++;
-      out.push(`<span class="tht" title="trick ${n} — won by ${NM[w]}"><span class="thn">${n}</span>`+
+      out.push(`<span class="tht" title="${T(`trick ${n} — won by ${NM[w]}`,`взятка ${n}, взял ${NM[w]}`)}"><span class="thn">${n}</span>`+
         trick.map(c=>`<span class="thc${c.who===w?' w':''}">${c.who.toUpperCase()[0]}${cardHTML(c.card)}</span>`).join("")+`</span>`);
       cur=w; trick=[]; } else cur=NEXT[cur]; }
-  return out.length?`<span class="thlab">played</span>`+out.join(""):""; }
+  return out.length?`<span class="thlab">${T("played","сыграно")}</span>`+out.join(""):""; }
 // double-dummy from the current position (via the caching API): the optimal declarer total from
 // here, and — when you play an off-best card — how many tricks it just threw. Silent without the API.
 let ipEvalTok=0, ddsAuto=false, ddsOnce=false;              // ddsAuto persists across restart; ddsOnce is per-hand
 // trainer: you play some seats, the double-dummy plays the rest (auto), optionally hiding its hands
-let youPlay='all', hideDD=false, autoTimer=null;
+let youPlay=BLIND?'decl':'all', hideDD=false, autoTimer=null;
 const PARTNER={n:'s',s:'n',e:'w',w:'e'};
 function dummySeat(){ return PARTNER[(q.get('dl')||'').toLowerCase()]; }   // declarer's partner
 function humanSeats(){ const d=(q.get('dl')||'').toLowerCase();
@@ -580,11 +704,11 @@ function humanSeats(){ const d=(q.get('dl')||'').toLowerCase();
   if(youPlay==='def') return new Set(['n','e','s','w'].filter(s=>!decl.has(s)));   // you = both defenders
   return null; }                                           // 'all' -> null (every seat is yours)
 function isAuto(seat){ const h=humanSeats(); return !!h && !h.has(seat); }         // played by the DD
-function isHidden(seat){ return hideDD && isAuto(seat) && seat!==dummySeat(); }    // dummy always shown
+function isHidden(seat){ return (BLIND?!(IP&&IP.review):hideDD) && isAuto(seat) && seat!==dummySeat(); }    // dummy always shown
 function ipClearDDV(){ document.querySelectorAll('.card .ddv').forEach(s=>s.remove()); }
 function ipRenderDDV(){                                       // annotate the on-turn hand's legal cards
   ipClearDDV();
-  if(!(ddsAuto||ddsOnce)||!IP||!IP.eval||IP.done||isHidden(IP.turn)) return;
+  if(!(ddsAuto||ddsOnce)||!IP||!IP.eval||IP.done||isHidden(IP.turn)||veiled()) return;
   document.querySelectorAll(`.seat.${IP.turn} .card.legal`).forEach(el=>{
     const v=IP.eval.cards[el.getAttribute('data-c').slice(1)]; if(v==null) return;
     const d=declTotal(v, IP.eval.side)-NEED;                  // contract result if this card is played
@@ -598,13 +722,13 @@ function declTotal(sideTricks, side){                        // side's remaining
   return declWon+(side===declSide?sideTricks:(remaining-sideTricks)); }
 function ipShowEval(){ const dd=document.getElementById('ipdd'); if(!dd||IP.curOpt==null) return;
   const df=IP.curOpt-NEED;
-  dd.innerHTML=`Double-dummy from here: declarer makes <b>${IP.curOpt}</b> (${df===0?"=":(df>0?"+"+df:df)})`; }
+  dd.innerHTML=`${T("Double-dummy from here: declarer makes","Double-dummy отсюда: разыгрывающий берёт")} <b>${IP.curOpt}</b> (${resText(df)})`; }
 async function ipFetchEval(){
   const dd=document.getElementById('ipdd');
   const tok=++ipEvalTok; if(!dd||IP.solving) return;       // during a best-line play-out, don't churn evals
   if(!API||IP.done){ dd.innerHTML=""; return; }
   const forLen=IP.seq.length;
-  if(IP.curOpt==null) dd.innerHTML='<span class="ipdim">computing double-dummy…</span>';
+  if(IP.curOpt==null) dd.innerHTML=`<span class="ipdim">${T("computing double-dummy…","считаю double-dummy…")}</span>`;
   try{
     const r=await fetch(apiURL({played:IP.seq.join(",")})); const j=await r.json();
     if(tok!==ipEvalTok||PLAYMODE!=="ip") return;            // a newer position (or tab) superseded this fetch
@@ -613,20 +737,27 @@ async function ipFetchEval(){
     IP.eval={forLen,...ev};
     const opt=declTotal(ev.best,ev.side);
     if(IP.moveBy&&IP.prevOpt!=null){ const cost=Math.abs(opt-IP.prevOpt);   // shift in the optimal = what the card cost
-      IP.lastMsg = cost>0 ? `▲ ${NM[IP.moveBy]} gave up ${cost} trick${cost>1?"s":""} vs. double-dummy` : "";
+      IP.lastMsg = cost>0 ? `▲ ${NM[IP.moveBy]} ${gaveUp(cost)}` : "";
       IP.moveBy=null; const fb=document.getElementById('ipfb'); if(fb) fb.textContent=IP.lastMsg; }
     IP.curOpt=opt; ipShowEval(); ipRenderDDV();
     if(isAuto(IP.turn)&&!IP.done&&!IP.solving&&!IP.redo.length){   // this seat is the DD's — it plays after a beat
       const forLen=IP.seq.length; clearTimeout(autoTimer);
       autoTimer=setTimeout(()=>{ if(IP.seq.length!==forLen||IP.done||!isAuto(IP.turn)||!IP.eval) return;
-        const best=Object.keys(IP.eval.cards).find(k=>IP.eval.cards[k]===IP.eval.best);
+        const lead=BLIND&&!IP.seq.length?(q.get("l")||"").toLowerCase():"";
+        const best=IP.eval.cards[lead]!=null?lead:Object.keys(IP.eval.cards).find(k=>IP.eval.cards[k]===IP.eval.best);
         if(best) ipPlay(best); }, 650); }
-  }catch(e){ if(tok===ipEvalTok&&IP.curOpt==null) dd.innerHTML=""; } }
-function wireInteractive(){ if(!IP) ipInit();
+  }catch(e){ if(tok!==ipEvalTok) return; if(IP.curOpt==null) dd.innerHTML="";
+    if(isAuto(IP.turn)&&!IP.done){ clearTimeout(autoTimer); autoTimer=setTimeout(ipFetchEval,2000); } } }
+function ipBack(){ const key=IP.seq[IP.seq.length-1]; ipRestore(IP.hist.pop()); IP.redo.push(key); }
+function wireInteractive(){
+  if(!IP){ ipInit(); cardList((q.get("at")||"").split(/[ ,]+/)).forEach(k=>ipPlay(k.toLowerCase(),false)); }
   // stepping through a line: while there are cards ahead (IP.redo) nothing plays by itself
-  document.getElementById('ipu').onclick=()=>{ if(!IP.hist.length) return; const key=IP.seq[IP.seq.length-1];
-    ipRestore(IP.hist.pop()); IP.redo.push(key); ipPaint(); };
+  document.getElementById('ipu').onclick=()=>{ if(IP.hist.length){ ipBack(); ipPaint(); } };
+  document.getElementById('ipstart').onclick=()=>{ if(IP.hist.length){ while(IP.hist.length) ipBack(); ipPaint(); } };
   document.getElementById('ipf').onclick=ipForward;
+  document.getElementById('iptrick').onclick=ipTrick;
+  document.getElementById('plink').onclick=function(){ copyLink(this,"at",IP.seq.join(",")); };
+  document.getElementById('ipaudit').onclick=e=>{ const b=e.target.closest('button[data-at]'); if(b) ipJump(+b.dataset.at); };
   document.getElementById('ipr').onclick=()=>{ ddsOnce=false; clearTimeout(autoTimer); ipInit(); ipPaint(); };
   const bo=document.getElementById('ddonce'), ba=document.getElementById('ddauto'), bl=document.getElementById('ipbest'),
         bc=document.getElementById('ipclaim');
@@ -634,15 +765,18 @@ function wireInteractive(){ if(!IP) ipInit();
   else { bo.onclick=()=>{ ddsOnce=true; ipRenderDDV(); };
     ba.onclick=()=>{ ddsAuto=!ddsAuto; ddsOnce=false; ipSyncDDSbtns(); ipRenderDDV(); };
     if(bl) bl.onclick=ipBestLine; if(bc) bc.onclick=ipClaim; }
-  document.querySelectorAll('.tr[data-you]').forEach(b=>b.onclick=()=>{ IP.solving=false; youPlay=b.dataset.you; ipSyncTrainer(); ipPaint(); });
+  document.querySelectorAll('.tr[data-you]').forEach(b=>b.onclick=()=>{ IP.solving=false; BLIND=false; youPlay=b.dataset.you; ipSyncTrainer(); ipPaint(); });
   const th=document.getElementById('trhide'); if(th) th.onclick=()=>{ IP.solving=false; hideDD=!hideDD; ipSyncTrainer(); ipPaint(); };
+  document.getElementById('trblind').onclick=()=>{ IP.solving=false; BLIND=!BLIND;   // on: from the first card, as nothing was seen
+    if(BLIND){ youPlay='decl'; ddsOnce=false; ipInit(); } ipSyncTrainer(); ipPaint(); };
   ipSyncTrainer(); ipSyncDDSbtns(); ipPaint(); }
 function ipSyncTrainer(){
   document.querySelectorAll('.tr[data-you]').forEach(b=>b.classList.toggle('on', b.dataset.you===youPlay));
-  const th=document.getElementById('trhide'); if(th){ th.classList.toggle('on', hideDD); th.style.display=youPlay==='all'?'none':''; }
+  const th=document.getElementById('trhide'); if(th){ th.classList.toggle('on', hideDD); th.style.display=youPlay==='all'||BLIND?'none':''; }
+  const tb=document.getElementById('trblind'); if(tb) tb.classList.toggle('on', BLIND);
   const row=document.querySelector('.iptr'); if(row) row.style.display=API?'':'none'; }   // trainer needs the eval API
 function ipSyncSolve(){ const b=document.getElementById('ipbest'); if(!b) return;
-  b.textContent=IP.solving?'⏹ stop':'best line ▶'; b.classList.toggle('on', IP.solving);
+  b.textContent=IP.solving?`⏹ ${T('stop','стоп')}`:`${T('best line','лучшая линия')} ▶`; b.classList.toggle('on', IP.solving);
   b.disabled=IP.done&&!IP.solving; }
 // play out the DD-optimal line from the current position to the end (one API call for the whole
 // continuation, then animate it locally). Click again to stop; ◀/▶/restart/mode change also stop,
@@ -667,11 +801,18 @@ async function ipBestLine(){
 async function ipForward(){
   IP.solving=false; clearTimeout(autoTimer);
   if(!IP.redo.length){ if(!API||IP.done) return;
-    const at=IP.seq.join(), line=await fetchContinuation();
-    if(IP.seq.join()!==at||IP.redo.length) return;
+    const ip=IP, at=IP.seq.join(), line=await fetchContinuation();
+    if(IP!==ip||IP.seq.join()!==at||IP.redo.length) return;
     IP.redo=[...line].reverse(); }
   if(IP.redo.length) ipPlay(IP.redo[IP.redo.length-1]); else ipPaint();       // no line: the DD's turn comes back
 }
+// ▶▶: on to the end of this trick · End: on to the end of the line
+async function ipTrick(){ const ip=IP;
+  do{ const n=IP.seq.length; await ipForward(); if(IP!==ip||IP.seq.length===n) return; }while(!IP.done&&IP.trick.length<4); }
+async function ipEnd(){ const ip=IP; if(!IP.redo.length) await ipForward();
+  if(IP!==ip) return; IP.solving=false; clearTimeout(autoTimer);
+  while(IP.redo.length&&!IP.done){ const n=IP.seq.length; ipPlay(IP.redo[IP.redo.length-1],false); if(IP.seq.length===n) break; }
+  ipPaint(); }
 // claim: finish the hand double-dummy instantly (fetch the continuation, apply it all at once)
 async function ipClaim(){
   if(!API||IP.done||IP.solving) return;
@@ -680,10 +821,11 @@ async function ipClaim(){
   if(IP.solving&&IP.seq.length===forLen){ for(const k of line){ if(IP.done) break; ipPlay(k, false); } }   // paint once, below
   IP.solving=false; if(PLAYMODE==="ip") ipPaint();
 }
-document.addEventListener('click',e=>{ if(PLAYMODE!=='ip'||!IP||IP.solving) return;
-  const el=e.target.closest('.card.legal'); if(el) ipPlay(el.getAttribute('data-c').slice(1)); });
-// keyboard: DD-line ← → step, ↓ trick, ↑/Home restart, space auto · interactive ← → step (backspace
-// and U too step back), R restart, B best line. Only while the play panel is up; clicks the same (visible, enabled) button.
+document.addEventListener('click',e=>{ const el=e.target.closest('.card.legal'); if(!el) return;
+  const key=el.getAttribute('data-c').slice(1);
+  if(PLAYMODE==='quiz'){ if(!QUIZ) quizPick(key); } else if(PLAYMODE==='ip'&&IP&&!IP.solving) ipPlay(key); });
+// keyboard: both tabs ← → step, ↓ trick, ↑/Home first card, End last · DD-line space auto · interactive
+// backspace and U too step back, R restart, B best line. Only while the play panel is up; clicks the same (visible, enabled) button.
 document.addEventListener('keydown',e=>{
   if(e.ctrlKey||e.metaKey||e.altKey) return;
   if(/^(input|textarea|select)$/i.test(e.target.tagName||'')) return;
@@ -695,17 +837,22 @@ document.addEventListener('keydown',e=>{
   if(PLAYMODE==='dd'){
     if(e.key==='ArrowRight') ok=hit('pn'); else if(e.key==='ArrowLeft') ok=hit('pp');
     else if(e.key==='ArrowDown') ok=hit('pt'); else if(e.key==='ArrowUp'||e.key==='Home') ok=hit('pf');
+    else if(e.key==='End'&&jumpPlay&&SEQ){ jumpPlay(SEQ.length); ok=true; }
     else if(e.key===' '||e.code==='Space') ok=hit('pa');
-  } else {
+  } else if(PLAYMODE==='ip'){
     const k=e.key.toLowerCase();
     if(e.key==='ArrowLeft'||e.key==='Backspace'||k==='u') ok=hit('ipu');
     else if(e.key==='ArrowRight') ok=hit('ipf');
+    else if(e.key==='ArrowDown') ok=hit('iptrick'); else if(e.key==='ArrowUp'||e.key==='Home') ok=hit('ipstart');
+    else if(e.key==='End'){ if(!veiled()) ipEnd(); ok=true; }
     else if(k==='r') ok=hit('ipr'); else if(k==='b') ok=hit('ipbest'); else if(k==='c') ok=hit('ipclaim');
   }
   if(ok) e.preventDefault();
 });
 render();
-findAPI().then(leadCost);
+const apiReady=findAPI();
+apiReady.then(()=>{ if(BLIND&&!API){ BLIND=false; youPlay='all'; if(IP){ ipSyncTrainer(); ipPaint(); } } })
+  .then(leadsBox).then(leadCost).then(auditPlay);
 </script>
 </body>
 </html>

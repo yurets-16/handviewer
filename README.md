@@ -2,8 +2,9 @@
 
 A bridge deal viewer in one static HTML file: the four hands around the table, the auction, the
 double-dummy makeable-tricks grid and par, and a play panel. The panel steps through a recorded or
-double-dummy line card by card, or lets you play the hand yourself, alone or against the
-double-dummy.
+double-dummy line card by card, or lets you play the hand yourself, alone, against the double-dummy
+or blind. It also checks the table's play card by card, lists what every opening lead is worth and
+sets the deal as a "guess the lead" problem. The page speaks English and Russian.
 
 Everything the viewer shows comes from the URL, so any results site can link to it without a
 build step, a framework or a database. The double-dummy features of the play panel (the DD line,
@@ -59,14 +60,25 @@ Letters are case-insensitive. Only the hands are required.
 | `pa`   | `1` = the `p` line is the play at the table; otherwise it is labelled a double-dummy line | `1` |
 | `pl`   | who sat where: `name\|team` per seat in the order N, E, S, W, joined by `~` | `Ann\|Lions~Bob\|Tigers~…` |
 | `l`    | opening lead the DD line starts from; ▶, best line and claim open with it too, and the play panel says what it cost | `c9`, `ct` (or `c10`) |
+| `at`   | open "Play it yourself" with these cards played; the ⧉ button makes such a link | `c5,cq,c2` |
+| `pos`  | open the line at this step; the ⧉ button makes such a link | `17` |
+| `quiz` | `1` = open as "Guess the lead": only the hand on lead and the auction show until a card is picked | `1` |
+| `blind` | `1` = open as declarer playing blind: your two hands only, no hints, a review after the last card | `1` |
+| `lang` | `ru` or `en`; left out, the browser's language decides | `ru` |
 | `api`  | URL of the double-dummy API (see below); left out, the page tries `/api/ddline` on its own site; empty, the API stays off | `https://example.org/dd` |
 | `back` | URL for a "← back" link (http/https only) | `https://example.org/round/3` |
 
 Every value from the URL is escaped before it reaches the page, so links from untrusted sources
 are safe to open.
 
-Keyboard: in the line view ←/→ step, ↓ next trick, ↑ restart, space autoplay; when you play the
-hand yourself ←/→ step (⌫ also steps back), R restart, B best line, C claim.
+Keyboard: in both views ←/→ step, ↓ next trick, ↑ or Home first card, End last card. In the line
+view space is autoplay; when you play the hand yourself ⌫ also steps back, R restarts, B plays the
+best line, C claims.
+
+With the API, the opening leads are listed by what declarer then makes. When `pa=1` marks the play
+as the table's, every card is checked in turn: that is up to 48 requests per deal, three at a time.
+Playing blind, the defenders are the double-dummy: they see all four hands and never slip, so a line
+that needs a mistake from them will not work.
 
 ## Links in BBO's format
 

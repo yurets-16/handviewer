@@ -12,6 +12,17 @@ console.log(JSON.stringify(JSON.parse(fs.readFileSync(vectors,'utf8')).map(r=>ca
 """
 
 
+SCORES = r"""
+const fs=require('fs'), [html]=process.argv.slice(1);
+const code=fs.readFileSync(html,'utf8').match(/const DD_RE[\s\S]*?\n(?=\/\/ ---- double-dummy play line)/)[0];
+const score=new Function(code+';return bridgeScore;')(), out=[];
+for(let level=1;level<=7;level++) for(const strain of 'shdcn') for(let dbl=0;dbl<3;dbl++)
+  for(let tricks=0;tricks<=13;tricks++) for(const vul of [false,true])
+    out.push([level,strain,dbl,tricks,vul,score(level,strain,dbl,tricks,vul)]);
+console.log(JSON.stringify(out));
+"""
+
+
 def as_endplay(par):
     """'3ntn= NS +400' -> ('3NTN=', 400); 'Passed out' -> ('', 0)."""
     if par == "Passed out":
@@ -43,6 +54,25 @@ class Par(unittest.TestCase):
     def test_covers_the_hard_cases(self):
         self.assertTrue(any("x" in p for p in self.pars), "a sacrifice")
         self.assertIn("Passed out", self.pars)       # the one hand-made row: six tricks all round
+
+
+@unittest.skipUnless(shutil.which("node"), "needs node")
+class Score(unittest.TestCase):
+    def test_every_contract_against_endplay(self):
+        try:
+            from endplay.types import Contract, Denom, Penalty, Player, Vul
+        except ImportError:
+            self.skipTest("endplay is not installed")
+        denom = {"s": Denom.spades, "h": Denom.hearts, "d": Denom.diamonds, "c": Denom.clubs, "n": Denom.nt}
+        penalty = [Penalty.passed, Penalty.doubled, Penalty.redoubled]
+        out = subprocess.run(["node", "-e", SCORES, os.path.join(ROOT, "handviewer.html")],
+                             capture_output=True, text=True, encoding="utf-8", check=True).stdout
+        rows = json.loads(out)
+        self.assertEqual(len(rows), 7 * 5 * 3 * 14 * 2)
+        for level, strain, dbl, tricks, vul, score in rows:
+            c = Contract(level=level, denom=denom[strain], declarer=Player.north, penalty=penalty[dbl],
+                         result=tricks - level - 6)
+            self.assertEqual(score, c.score(Vul.ns if vul else Vul.none), (level, strain, dbl, tricks, vul))
 
 
 if __name__ == "__main__":
