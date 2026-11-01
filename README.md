@@ -67,6 +67,7 @@ Letters are case-insensitive. Only the hands are required.
 | `task` | `1` = open as "Find the card": the line stops at its key moments, where one card keeps the result | `1` |
 | `set`  | a JSON file on the same site with a set of deals (see below); alone in the link, it opens at `i` | `/sets/leads.json` |
 | `i`    | the place in the set, from 0 | `3` |
+| `tc`   | a contract to practise, `contract.declarer`: it replaces `c` and `dl` on the page and drops the table's lead, play and result; `c` and `dl` stay in the link, and the page goes back to them. Needs all four hands, and a set ignores it | `3nt.s`, `5dx.e` |
 | `ol`   | the field's opening leads, card and count, most led first; "Guess the lead" shows them after the answer | `sk12,d34` |
 | `blind` | `1` = open as declarer playing blind: your two hands only, no hints, a review after the last card | `1` |
 | `lang` | `ru` or `en`; left out, the browser's language decides | `ru` |
@@ -84,6 +85,11 @@ With the API, the opening leads are listed by what declarer then makes. When `pa
 as the table's, every card is checked in turn: that is up to 48 requests per deal, three at a time.
 Playing blind, the defenders are the double-dummy: they see all four hands and never slip, so a line
 that needs a mistake from them will not work.
+
+"Another contract" replays the deal with any contract and declarer. A cell of the double-dummy grid
+fills in the form with the contract that makes exactly, or a one-level one when even that fails, and
+"Play it" starts the hand; the choice goes into the link as `tc=`, so it can be sent on. A set of deals
+does not offer it: the task stays as set.
 
 "Find the card" walks the line, the table's or the double-dummy one, and asks the API about every
 position. On a line played at a table (`pa=1`), every card that gave a trick away is a key moment,

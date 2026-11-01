@@ -108,6 +108,13 @@
   .ipdd{color:var(--dim);font-size:12.5px;margin-top:8px} .ipdd b{color:var(--accent)}
   .ipfb{color:#ffab5e;font-size:12px;margin-top:4px;min-height:15px}
   .ipdim{color:#5a6a80}
+  .tcbar{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:9px;font-size:12px;color:var(--dim)}
+  .tcbar .tcb,.tcbar select{background:#0d1c2e;border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer}
+  .tcbar select{color:var(--ink);padding:4px 6px} .tcbar .tcb:hover{color:var(--ink)}
+  .tcbar .tcb.on{background:#123049;color:var(--ink);border-color:var(--accent)}
+  .tcform{display:inline-flex;flex-wrap:wrap;gap:6px} .tcform[hidden]{display:none}
+  .quiz .tcbar,.task .tcbar{display:none} .task .dd td[data-tc]{pointer-events:none}
+  .dd td[data-tc]{cursor:pointer} .dd td[data-tc]:hover{outline:1px solid var(--accent)}
   .ddv{font-size:9px;font-weight:700;margin-left:1px;vertical-align:super;line-height:0}
   .ddv.made{color:var(--accent)} .ddv.set{color:var(--he)}
   .iptr{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:9px}
@@ -151,7 +158,7 @@
     :root{--panel:#fff;--line:#999;--ink:#000;--dim:#333;--accent:#000;--sp:#000;--he:#c8102e;--di:#d9730d;--cl:#0a7a3c;--gold:#000}
     *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     body{background:#fff;color:#000;min-height:0} .top h1{color:#000} .wrap{max-width:none;padding:6px 0}
-    .top{padding:0 0 6px} #rotate,#tools,#setbar,#back,#playbox,.note,.tc{display:none!important}
+    .top{padding:0 0 6px} #rotate,#tools,#setbar,#back,#playbox,.tcbar,.note,.tc{display:none!important}
     .table{background:none;box-shadow:none;border-color:#999} .mid{background:#fff}
     .seat{max-width:none} .seat.toplay,.seat.onlead{outline:none;box-shadow:none}
     .card,.card.played,.card.now,.card.legal,.seat.facedown .card{opacity:1;text-decoration:none;background:none;color:inherit;font-weight:400;box-shadow:none}
@@ -203,6 +210,12 @@ if(RU){ document.documentElement.lang="ru"; document.title=document.querySelecto
     seat=NEXT[seat]; return call; });
   q.set("a",out.join("-"));
   if(last&&!q.get("c")){ q.set("c",last.call+dbl); if(!q.get("dl")) q.set("dl",first[last.k]); } })();
+// tc=3nt.s: a contract to practise, the deal replayed with another contract or declarer. c= and dl=
+// stay in the address and come back with it; on this page what the table did is gone with them.
+const TC_OK=!q.has("set")&&["n","e","s","w"].every(s=>q.get(s));
+const TC=(()=>{ const t=TC_OK&&parseTC(q.get("tc")); if(!t) return null;
+  const was={c:q.get("c")||"",dl:(q.get("dl")||"").toLowerCase()};
+  q.set("c",t.c); q.set("dl",t.dl); ["l","p","pa","r","ol"].forEach(k=>q.delete(k)); return was; })();
 // pa=1 marks the baked p= line as the table's ACTUAL play (a results page hands it over that
 // way); without it a baked line is the double-dummy one, which is a different claim entirely
 const ACTUAL=q.get("pa")==="1";
@@ -261,7 +274,7 @@ function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","s","e","w
   let g=`<table class="dd"><tr><th></th>${strains.map(s=>`<th>${s==="NT"?"NT":suitSym(s)}</th>`).join("")}</tr>`;
   seats.forEach(se=>{ g+=`<tr><th>${se.toUpperCase()}</th>`;
     strains.forEach((st,ti)=>{ const t=parseInt(dd[IDX[se]*5+ti],36);
-      g+=`<td class="${t>=7?'make':'lo'}">${isNaN(t)?"":t}</td>`; });
+      g+=`<td class="${t>=7?'make':'lo'}"${TC_OK&&!isNaN(t)?` data-tc="${tcCell(t,st,se)}" title="${T("try this contract","попробовать этот контракт")}"`:""}>${isNaN(t)?"":t}</td>`; });
     g+="</tr>"; });
   return g+"</table>"; }
 
@@ -271,6 +284,10 @@ function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","s","e","w
 // doubled, and what both sides can force is par. Seats, not sides, take turns because when both
 // sides can make the same contract the one that gets there first has it.
 const DD_RE=/^[0-9a-d]{20}$/i, PAR_STRAINS="cdhsn", PAR_GRID={n:0,s:1,h:2,d:3,c:4};   // bid order -> column of the dd= grid
+// tc= as {c,dl}, or null for anything else; and the contract a cell of the grid suggests: what makes
+// exactly, or one of the strain when not even that does
+function parseTC(v){ const m=(v||"").match(/^([1-7](?:nt?|[shdc])x{0,2})\.([nesw])$/i); return m?{c:m[1].toLowerCase().replace(/^(\d)n(?!t)/,"$1nt"),dl:m[2].toLowerCase()}:null; }
+function tcCell(tricks, strain, seat){ return `${tricks>=7?tricks-6:1}${strain.toLowerCase()}.${seat}`; }
 function contractScore(level, strain, tricks, vul){
   const down=level+6-tricks;
   if(down>0) return -(vul?300*down-100:down<4?200*down-100:300*down-400);
@@ -416,7 +433,7 @@ function render(){
     </div></div></div>`;
 
   let panels=`<div class="panels">`;
-  const auc=q.get("a"); if(auc) panels+=`<div class="box"><h2>${T("Auction","Торговля")}</h2>${auctionHTML(auc,dealer)}</div>`;
+  const auc=q.get("a"); if(auc) panels+=`<div class="box"><h2>${TC?T("Auction at the table","Торговля за столом"):T("Auction","Торговля")}</h2>${auctionHTML(auc,dealer)}</div>`;
   DEALER=dealer; VUL=vul;
   if(q.get("dd")) panels+=ddBox(q.get("dd"));
   panels+=`</div>`;
@@ -425,11 +442,12 @@ function render(){
   const playbox=`<div class="box" id="playbox" style="margin-top:9px;display:none">
     <h2>${T("Play","Розыгрыш")}</h2><div class="pl-body"></div></div>`;
 
-  app.innerHTML=comp+panels+playbox+
+  app.innerHTML=comp+panels+tcBar()+playbox+
     `<div class="note">${T("Four-colour suits","Четырёхцветные масти")} · ${ACTUAL?T("the line shown is the table’s actual card play","показан реальный розыгрыш за столом"):T("the line shown is double-dummy optimal, not the table’s actual play","показана линия double-dummy, а не розыгрыш за столом")}<br>${T("Keys — both tabs: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>Home</b>/<b>End</b> start and end · line: <b>space</b> auto · play: <b>R</b> restart, <b>B</b> best line, <b>C</b> claim","Клавиши — обе вкладки: <b>←</b>/<b>→</b> шаг, <b>↓</b> взятка, <b>Home</b>/<b>End</b> начало и конец · линия: <b>пробел</b> авто · игра: <b>R</b> сначала, <b>B</b> лучшая линия, <b>C</b> клейм")}</div>`;
   const bd=/^\d+$/.test(q.get("b")||"")?q.get("b"):"";                 // digits only: it reaches innerHTML
   if(bd) document.title=`${T("Board","Сдача")} ${bd} · ${T("Hand viewer","Просмотр сдачи")}`;
-  document.getElementById("sub").innerHTML=(bd?`${T("Board","Сдача")} ${bd}${contract?" · ":""}`:"")+(contract?fmtContract(contract):"")+(result?` <span class="rslt">${esc(result)}</span>`:"")+(decl?` ${T("by","играет")} ${esc(decl.toUpperCase())}`:"");
+  document.getElementById("sub").innerHTML=(bd?`${T("Board","Сдача")} ${bd}${contract?" · ":""}`:"")+(contract?fmtContract(contract):"")+(result?` <span class="rslt">${esc(result)}</span>`:"")+(decl?` ${T("by","играет")} ${esc(decl.toUpperCase())}`:"")+(TC?` · ${T("practice contract","учебный контракт")}`:"");
+  wireTC();
   const back=document.getElementById("back"), b=q.get("back");
   // only http/https (resolved against this page) — blocks javascript:/data: back links
   if(b){ try{ const url=new URL(b, location.href);
@@ -446,6 +464,32 @@ function render(){
   // the DD line loads lazily when its tab is opened). Baked p= also shows it.
   if(SEQ || CAN_IP) showPlay();
 }
+
+// another contract or declarer: the form under the panels, which a cell of the double-dummy grid fills
+function tcBar(){ if(!TC_OK) return "";
+  const m=(q.get("c")||"").match(/^(\d)(nt|[shdc])(x{0,2})/i)||[], st=(m[2]||"nt").toLowerCase(), x=(m[3]||"").toLowerCase();
+  const sel=(id,opts,cur)=>`<select id="${id}">${opts.map(([v,l])=>`<option value="${v}"${v===cur?" selected":""}>${l}</option>`).join("")}</select>`;
+  const was=TC&&TC.c?`${fmtContract(TC.c)}${NM[TC.dl]?` ${TC.dl.toUpperCase()}`:""}`:"";
+  return `<div class="tcbar">`+(TC?`<span>${T("Practice contract","Учебный контракт")}${was?` · ${T("at the table","за столом")} ${was}`:""}</span>
+      <button class="tcb" id="tcback">${TC.c?T("Back to the table’s contract","Вернуть контракт стола"):T("Clear the contract","Убрать контракт")}</button>`:"")+
+    `<button class="tcb" id="tcopen">${T("Another contract","Другой контракт")}</button><span class="tcform" id="tcform" hidden>`+
+    sel("tclv",[..."1234567"].map(n=>[n,n]),m[1]||"3")+
+    sel("tcst",[["c",SUIT.c.sym],["d",SUIT.d.sym],["h",SUIT.h.sym],["s",SUIT.s.sym],["nt","NT"]],st)+
+    sel("tcx",[["","—"],["x","X"],["xx","XX"]],x)+
+    sel("tcdl",["n","e","s","w"].map(s=>[s,NM[s]]),DECL)+
+    `<button class="tcb on" id="tcplay">${T("Play it","Играть")}</button></span></div>`; }
+function wireTC(){ const f=document.getElementById("tcform"); if(!f) return;
+  const [lv,st,x,dl]=["tclv","tcst","tcx","tcdl"].map(id=>document.getElementById(id)), back=document.getElementById("tcback");
+  // the play and the tabs of the page go with the reload: a new contract starts with the hand itself,
+  // blind only if it is blind now
+  const go=v=>{ const u=new URL(location.href); ["at","pos","quiz","task",...BLIND?[]:["blind"]].forEach(k=>u.searchParams.delete(k));
+    if(v) u.searchParams.set("tc",v); else u.searchParams.delete("tc"); location.assign(u); };
+  document.getElementById("tcopen").onclick=()=>{ f.hidden=!f.hidden; };
+  document.getElementById("tcplay").onclick=()=>go(`${lv.value}${st.value}${x.value}.${dl.value}`);
+  if(back) back.onclick=()=>go("");
+  // a cell only fills the form: one stray click in the grid must not cost the hand being played
+  document.getElementById("app").addEventListener("click",e=>{ const td=e.target.closest("td[data-tc]"), t=td&&parseTC(td.dataset.tc);
+    if(!t) return; lv.value=t.c[0]; st.value=t.c.slice(1); x.value=""; dl.value=t.dl; f.hidden=false; }); }
 
 // the deal as a picture: the four hands and the contract, whatever the table shows right now
 function dealSVG(){ const col={s:"#111",h:"#c8102e",d:"#d9730d",c:"#0a7a3c"}, bd=/^\d+$/.test(q.get("b")||"")?q.get("b"):"";

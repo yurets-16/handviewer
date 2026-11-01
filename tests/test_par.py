@@ -78,10 +78,11 @@ class Score(unittest.TestCase):
 MOMENTS = r"""
 const fs=require('fs'), [html,cases]=process.argv.slice(1);
 const code=fs.readFileSync(html,'utf8').match(/const DD_RE[\s\S]*?\n(?=\/\/ ---- double-dummy play line)/)[0];
-const {onlyMove,keyMoments}=new Function(code+';return {onlyMove,keyMoments};')();
+const {onlyMove,keyMoments,parseTC,tcCell}=new Function(code+';return {onlyMove,keyMoments,parseTC,tcCell};')();
 const {only,evs,keys,table}=JSON.parse(cases);
 console.log(JSON.stringify({only:only.map(c=>onlyMove({best:c.best,cards:c.cards},new Set(c.gone))),
-  moments:keyMoments(evs,keys,false,2),table:keyMoments(evs,table,true,4),top:keyMoments(evs,table,true,2)}));
+  moments:keyMoments(evs,keys,false,2),table:keyMoments(evs,table,true,4),top:keyMoments(evs,table,true,2),
+  tc:["3nt.s","5DX.E","3n.w","4h","8s.n","4h.q",""].map(parseTC),cell:[[10,"h","n"],[6,"NT","e"],[13,"s","w"]].map(a=>tcCell(...a))}));
 """
 
 
@@ -113,6 +114,9 @@ class Moments(unittest.TestCase):
         self.assertEqual(r["table"][3]["best"], ["c5", "d5"])
         self.assertEqual(r["table"][1]["gap"], 3)
         self.assertEqual([m["i"] for m in r["top"]], [3, 5])       # the table's dearest cards first
+        self.assertEqual(r["tc"], [{"c": "3nt", "dl": "s"}, {"c": "5dx", "dl": "e"}, {"c": "3nt", "dl": "w"},
+                                   None, None, None, None])
+        self.assertEqual(r["cell"], ["4h.n", "1nt.e", "7s.w"])     # what makes exactly, at least the one level
 
 
 if __name__ == "__main__":
