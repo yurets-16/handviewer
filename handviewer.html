@@ -291,11 +291,15 @@ function onlyMove(ev, gone){ const keys=Object.keys(ev.cards), best=keys.filter(
   const at=best.map(k=>rk.indexOf(k[1])), lo=Math.min(...at), hi=Math.max(...at);
   for(let r=lo;r<=hi;r++) if(!at.includes(r)&&!gone.has(best[0][0]+rk[r])) return null;
   return {best, gap:ev.best-Math.max(...rest.map(k=>ev.cards[k])), share:rest.length/keys.length}; }
-// The moments of a line worth stopping at: an only move, dearest first. The lead has its own tab,
-// and the last two tricks leave too little to choose from.
-function keyMoments(evs, keys, max=5){ const out=[];
-  for(let i=1;i<Math.min(evs.length,44);i++){ const m=evs[i]&&onlyMove(evs[i],new Set(keys.slice(0,i))); if(m) out.push({i,...m}); }
-  return out.sort((a,b)=>b.gap-a.gap||b.share-a.share||a.i-b.i).slice(0,max).sort((a,b)=>a.i-b.i); }
+// The moments of a line worth stopping at, dearest first: on a line played at a table the cards that
+// gave a trick away, then the only moves. The lead has its own tab, and the last two tricks leave
+// too little to choose from unless the table went wrong there.
+function keyMoments(evs, keys, actual=false, max=5){ const out=[];
+  for(let i=1;i<evs.length;i++){ const ev=evs[i]; if(!ev) continue;
+    const m=i<44&&onlyMove(ev,new Set(keys.slice(0,i))), v=actual?ev.cards[keys[i]]:null;
+    if(v!=null&&v<ev.best) out.push({i,best:Object.keys(ev.cards).filter(k=>ev.cards[k]===ev.best),gap:ev.best-v,share:m?m.share:0,err:true});
+    else if(m) out.push({i,...m,err:false}); }
+  return out.sort((a,b)=>b.err-a.err||b.gap-a.gap||b.share-a.share||a.i-b.i).slice(0,max).sort((a,b)=>a.i-b.i); }
 function calcPar(dd, dealer, vul){
   if(!DD_RE.test(dd||"")) return "";
   const seats="nesw", first=seats.indexOf(dealer), memo=new Map();
@@ -574,7 +578,7 @@ function renderQuiz(body,tabs){
     const said=c==null?T("Double-dummy is not available here.","Double-dummy здесь недоступен."):c
       ?`▲ ${card} ${T(`gives up ${trk(c)} vs. double-dummy`,`отдаёт ${trk(c)} по double-dummy`)}`
       :`${card} ${T("is double-dummy best","лучшая атака по double-dummy")}`;
-    const table=CARD_RE.test(l)?`<div class="ipdd">${T("At the table","За столом")}: ${cardHTML(l)}</div>`:"";
+    const table=(CARD_RE.test(l)?`<div class="ipdd">${T("At the table","За столом")}: ${cardHTML(l)}</div>`:"")+fieldLeads();
     body.innerHTML=tabs+`<div class="${c?"ipfb":"ipdd"}">${said}</div>${table}<div class="play"><button id="qplay">${T("Play on from this lead","Играть с этой атаки")} ▶</button>${setNextBtn()}</div>`;
     document.getElementById("qplay").onclick=()=>{ q.set("at",QUIZ.key); IP=null; PLAYMODE="ip"; renderPlay(); };
     wireSetNext();
@@ -586,8 +590,16 @@ function renderQuiz(body,tabs){
   const st=document.querySelector(`.seat.${LEADER0}`); if(st) st.classList.add("toplay"); }
 async function quizPick(key){ if(quizBusy) return; quizBusy=true; await apiReady; let ev=LEADS;
   if(!ev&&API) try{ ev=evalOf(await (await fetch(apiURL({played:""}))).json()); }catch(e){}
-  quizBusy=false; QUIZ={key,cost:ev&&ev.cards[key]!=null?ev.best-ev.cards[key]:null};
+  quizBusy=false; QUIZ={key,ev,cost:ev&&ev.cards[key]!=null?ev.best-ev.cards[key]:null};
   if(QUIZ.cost!=null) setMark(!QUIZ.cost); if(PLAYMODE==="quiz") renderPlay(); }
+// ol=sk12,d34: what the other tables led in this strain with this declarer, the tricks by this deal's
+// double-dummy; the deals of a set bring it along
+function fieldLeads(){ const ol=(q.get("ol")||"").split(",").map(s=>s.match(/^([shdc][2-9tjqka])(\d+)$/i)).filter(Boolean);
+  if(!ol.length) return "";
+  const ev=QUIZ.ev, n=ol.reduce((a,m)=>a+ +m[2],0);
+  return `<div class="ipdd">${T(`The field, ${n} tables in this strain with this declarer:`,`За столами с той же мастью и тем же разыгрывающим (${n}):`)}</div><div class="ldrow">`+ol.map(m=>{
+    const c=m[1].toLowerCase(), cost=ev&&ev.cards[c]!=null?ev.best-ev.cards[c]:0;
+    return `<span class="ld${c===QUIZ.key?" l":""}">${cardHTML(c)} ×${m[2]}${cost?`<sup>−${cost}</sup>`:""}</span>`; }).join("")+`</div>`; }
 // "Find the card": the line stops at its key moments, where only one card keeps the result. You see
 // what the player on turn sees, the hand and dummy, until the card is found or the answer asked for.
 let TASK=null, taskBusy=false, IPKEEP=null;
@@ -610,7 +622,7 @@ async function taskFind(){ if(taskBusy) return; taskBusy=true;
   if(!SEQ) return none();
   const keys=SEQ.map(x=>x.card.toLowerCase()), evs=await lineEvals(keys,(a,n)=>say(`${T("Looking for the key moments","Ищу ключевые моменты")}… ${a}/${n}`));
   if(!evs.some(Boolean)){ LINE_EVS=null; return none(); }                    // the tab tries again next time
-  TASK={keys,evs,moms:keyMoments(evs,keys),at:0,tries:0,solved:false,clean:0,msg:""}; taskBusy=false;
+  TASK={keys,evs,moms:keyMoments(evs,keys,ACTUAL),at:0,tries:0,solved:false,clean:0,msg:""}; taskBusy=false;
   if(PLAYMODE==="task") renderPlay(); }
 function taskGo(n){ TASK.at=n; ipInit(); TASK.keys.slice(0,TASK.moms[n].i).forEach(k=>ipPlay(k,false));
   ddsOnce=TASK.solved; ipPaint(); taskPaint(); }
@@ -620,8 +632,8 @@ function taskPaint(){ const box=document.getElementById("taskbox"); if(!box) ret
   const goal=ours?T(`Find the card that gives declarer ${tricks}.`,`Найдите карту, с которой разыгрывающий возьмёт ${tricks}.`)
     :T(`Find the card that holds declarer to ${tricks}.`,`Найдите карту, с которой разыгрывающий возьмёт не больше ${tricks}.`);
   let html=`<div class="ipdd"><b>${TASK.at+1}/${N}</b> · ${NM[IP.turn]} · ${goal}</div>`;
-  if(TASK.solved) html+=`<div class="ipdd">✓ ${m.best.map(cardHTML).join(T(" or "," или "))}${m.gap?` · ${T("any other card gives up at least","другая карта отдаёт минимум")} ${trk(m.gap)}`:""}</div>`+
-    (ACTUAL&&!m.best.includes(played)?`<div class="ipfb">${T("At the table","За столом")}: ${cardHTML(played)}</div>`:"");
+  if(TASK.solved) html+=`<div class="ipdd">✓ ${m.best.length>3?T(`right cards: ${m.best.length}`,`верных карт: ${m.best.length}`):m.best.map(cardHTML).join(T(" or "," или "))}${m.err?"":` · ${T("any other card gives up at least","другая карта отдаёт минимум")} ${trk(m.gap)}`}</div>`+
+    (m.err?`<div class="ipfb">${T("At the table","За столом")}: ${cardHTML(played)} ${T(`gave up ${trk(m.gap)}`,`отдала ${trk(m.gap)}`)}</div>`:"");
   else if(TASK.msg) html+=`<div class="ipfb">${TASK.msg}</div>`;
   if(TASK.solved&&last) html+=`<div class="ipdd">${T(`Found at the first try: ${TASK.clean} of ${N}`,`С первой попытки: ${TASK.clean} из ${N}`)}</div>`;
   html+=`<div class="play taskbtns">${TASK.solved?(last?setNextBtn():`<button id="tnext">${T("Next moment","Следующий момент")} ▶</button>`):`<button id="tshow">${T("Show the answer","Показать ответ")}</button>`}</div>`;

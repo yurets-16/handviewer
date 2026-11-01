@@ -79,8 +79,9 @@ MOMENTS = r"""
 const fs=require('fs'), [html,cases]=process.argv.slice(1);
 const code=fs.readFileSync(html,'utf8').match(/const DD_RE[\s\S]*?\n(?=\/\/ ---- double-dummy play line)/)[0];
 const {onlyMove,keyMoments}=new Function(code+';return {onlyMove,keyMoments};')();
-const {only,evs,keys}=JSON.parse(cases);
-console.log(JSON.stringify({only:only.map(c=>onlyMove({best:c.best,cards:c.cards},new Set(c.gone))),moments:keyMoments(evs,keys,2)}));
+const {only,evs,keys,table}=JSON.parse(cases);
+console.log(JSON.stringify({only:only.map(c=>onlyMove({best:c.best,cards:c.cards},new Set(c.gone))),
+  moments:keyMoments(evs,keys,false,2),table:keyMoments(evs,table,true,4),top:keyMoments(evs,table,true,2)}));
 """
 
 
@@ -98,14 +99,20 @@ class Moments(unittest.TestCase):
             case(ev(3, hq=3, h5=3)),                          # nothing is worse
         ], "evs": [
             ev(5, sa=5, s2=4), ev(5, h2=5, h3=4), None, ev(5, c2=5, c3=2), ev(5, d2=5, d3=5),
-            ev(5, sk=5, s3=4, s4=4),
-        ], "keys": ["sa", "h2", "d9", "c2", "d2", "sk"]}
+            ev(5, sk=5, s3=4, s4=4), ev(5, c5=5, d5=5, h5=4),
+        ], "keys": ["sa", "h2", "d9", "c2", "d2", "sk", "c5"],
+           "table": ["sa", "h3", "d9", "c3", "d2", "s3", "h5"]}     # four cards that gave a trick away
         out = subprocess.run(["node", "-e", MOMENTS, os.path.join(ROOT, "handviewer.html"), json.dumps(moved)],
                              capture_output=True, text=True, encoding="utf-8", check=True).stdout
         r = json.loads(out)
         self.assertEqual([bool(x) for x in r["only"]], [True, True, True, False, False, False])
         self.assertEqual(r["only"][0]["gap"], 1)
         self.assertEqual([m["i"] for m in r["moments"]], [3, 5])   # dearest first, shown in play order
+        self.assertEqual([m["i"] for m in r["table"]], [1, 3, 5, 6])
+        self.assertTrue(all(m["err"] for m in r["table"]))         # 6 counts though it is no only move
+        self.assertEqual(r["table"][3]["best"], ["c5", "d5"])
+        self.assertEqual(r["table"][1]["gap"], 3)
+        self.assertEqual([m["i"] for m in r["top"]], [3, 5])       # the table's dearest cards first
 
 
 if __name__ == "__main__":

@@ -67,6 +67,7 @@ Letters are case-insensitive. Only the hands are required.
 | `task` | `1` = open as "Find the card": the line stops at its key moments, where one card keeps the result | `1` |
 | `set`  | a JSON file on the same site with a set of deals (see below); alone in the link, it opens at `i` | `/sets/leads.json` |
 | `i`    | the place in the set, from 0 | `3` |
+| `ol`   | the field's opening leads, card and count, most led first; "Guess the lead" shows them after the answer | `sk12,d34` |
 | `blind` | `1` = open as declarer playing blind: your two hands only, no hints, a review after the last card | `1` |
 | `lang` | `ru` or `en`; left out, the browser's language decides | `ru` |
 | `api`  | URL of the double-dummy API (see below); left out, the page tries `/api/ddline` on its own site; empty, the API stays off | `https://example.org/dd` |
@@ -85,9 +86,10 @@ Playing blind, the defenders are the double-dummy: they see all four hands and n
 that needs a mistake from them will not work.
 
 "Find the card" walks the line, the table's or the double-dummy one, and asks the API about every
-position. A key moment is one where the best cards are a single card or touching ones and the hand
-holds something worse. Up to five are kept, the dearest first, and shown in play order. You see what
-the player on turn sees, that hand and dummy, until the card is found.
+position. On a line played at a table (`pa=1`), every card that gave a trick away is a key moment,
+and these come first. After them come the moments where the best cards are a single card or touching
+ones and the hand holds something worse. Up to five are kept, the dearest first, and shown in play
+order. You see what the player on turn sees, that hand and dummy, until the card is found.
 
 ## Sets of deals
 
