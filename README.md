@@ -68,6 +68,7 @@ Letters are case-insensitive. Only the hands are required.
 | `set`  | a JSON file on the same site with a set of deals (see below); alone in the link, it opens at `i` | `/sets/leads.json` |
 | `i`    | the place in the set, from 0 | `3` |
 | `tc`   | a contract to practise, `contract.declarer`: it replaces `c` and `dl` on the page and drops the table's lead, play and result; `c` and `dl` stay in the link, and the page goes back to them. Needs all four hands, and a set ignores it | `3nt.s`, `5dx.e` |
+| `view` | `1` = the deal alone, with no double-dummy of any kind (grid, par, hints, leads) and neither the table's lead nor its result, even if the link carries them, and nothing highlighted; "Play it yourself" stays a tab away, there is no other contract. For a deal set as a problem | `1` |
 | `ol`   | the field's opening leads, card and count, most led first; "Guess the lead" shows them after the answer | `sk12,d34` |
 | `blind` | `1` = open as declarer playing blind: your two hands only, no hints, a review after the last card | `1` |
 | `api`  | URL of the double-dummy API (see below); left out, the page tries `/api/ddline` on its own site; empty, the API stays off | `https://example.org/dd` |
@@ -77,8 +78,12 @@ Every value from the URL is escaped before it reaches the page, so links from un
 are safe to open.
 
 Keyboard: in both views ←/→ step, ↓ next trick, ↑ or Home first card, End last card. In the line
-view space is autoplay; when you play the hand yourself ⌫ also steps back, R restarts, B plays the
-best line, C claims. In a set PgUp and PgDn change the deal, and Enter goes on from an answer.
+view space is autoplay; when you play the hand yourself ⌫ or U also steps back, R restarts, B plays
+the best line, C claims, and Tab reaches the cards, Enter or space plays one. In a set PgUp and PgDn
+change the deal, and Enter goes on from an answer.
+
+On a phone or a touch screen the play stays right under the table and the hand on turn comes again
+there in cards big enough for a finger. A light system gets light colours.
 
 With the API, the opening leads are listed by what declarer then makes. When `pa=1` marks the play
 as the table's, every card is checked in turn: that is up to 48 requests per deal, three at a time.

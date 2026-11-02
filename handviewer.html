@@ -5,23 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hand viewer</title>
 <style>
-  :root{ --panel:#182234; --line:#2a3852; --ink:#e7eef7; --dim:#8ea0bd; --accent:#5ee0a0;
-    --sp:#e9eef7; --he:#ff6b6b; --di:#ffab5e; --cl:#5fd39a; --gold:#E5B17C; }
+  :root{ color-scheme:dark; --panel:#182234; --line:#2a3852; --ink:#e7eef7; --dim:#8ea0bd; --accent:#5ee0a0; --onaccent:#08331f;
+    --sp:#e9eef7; --he:#ff6b6b; --di:#ffab5e; --cl:#5fd39a; --gold:#E5B17C; --warn:#ffab5e; --link:#7fd0ff; --x:#ff9d5e; --vred:#ff7a7a;
+    --bg:#0f1622; --bg2:#1b2740; --felt:#123049; --felt2:#0e2336; --well:#0a1826; --btn:#0d1c2e; --sel:#123049;
+    --back:#26385c; --backline:#3a4f78; --won:#0e2a1e; --off:#3a1a1a; --offink:#ffd0d0; }
   *{box-sizing:border-box}
-  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#1b2740,#0f1622);color:var(--ink);
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,var(--bg2),var(--bg));color:var(--ink);
     font:14px/1.45 -apple-system,Segoe UI,Roboto,Arial,sans-serif;min-height:100vh}
-  a{color:#7fd0ff;text-decoration:none} a:hover{text-decoration:underline}
+  a{color:var(--link);text-decoration:none} a:hover{text-decoration:underline}
   .top{display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line)}
-  .top h1{font-size:15px;margin:0;font-weight:600;color:#fff}
-  #rotate,.tbtn{background:#182234;border:1px solid var(--line);color:var(--ink);border-radius:8px;
+  .top h1{font-size:15px;margin:0;font-weight:600;color:var(--ink)}
+  #rotate,.tbtn{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:8px;
     min-width:30px;height:27px;cursor:pointer;font-size:12px;line-height:1} #rotate{font-size:15px}
   #rotate:hover,.tbtn:hover{border-color:var(--accent)} .tbtn:disabled{opacity:.35;cursor:default}
-  #tools{display:flex;gap:5px} #setbar{display:flex;align-items:center;gap:6px;color:var(--dim);font-size:12px}
+  #tools{display:flex;gap:5px} #setbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;color:var(--dim);font-size:12px}
   #setbar b{color:var(--accent);font-weight:600}
   .top .sub{color:var(--dim);font-size:12px}
   .wrap{max-width:660px;margin:0 auto;padding:18px 14px 44px}
   .table{display:grid;grid-template-columns:1fr 1.1fr 1fr;grid-template-rows:auto auto auto;gap:10px;
-    align-items:center;justify-items:center;background:linear-gradient(180deg,#123049,#0e2336);
+    align-items:center;justify-items:center;background:linear-gradient(180deg,var(--felt),var(--felt2));
     border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
   .seat{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:9px 12px;
     width:100%;max-width:215px;min-width:0}
@@ -32,7 +34,7 @@
   .seat.deal .lbl b{color:var(--gold)}
   /* who sat there (pl=), when the link came from a protocol: the player over their team */
   .seat .who{font-size:11.5px;line-height:1.25;margin:-1px 0 5px;overflow-wrap:anywhere}
-  .seat .who b{color:var(--fg);font-weight:600}
+  .seat .who b{color:var(--ink);font-weight:600}
   .seat .who span{display:block;font-size:10px;color:var(--dim);letter-spacing:.03em}
   .seat.onlead{outline:2px solid var(--accent);outline-offset:1px}
   /* long suit (up to 13 cards) must never widen the seat past its track and force a page scroll —
@@ -44,48 +46,51 @@
   .sp{color:var(--sp)} .he{color:var(--he)} .di{color:var(--di)} .cl{color:var(--cl)}
   .card{padding:0 1px;border-radius:3px}
   .card.played{opacity:.2;text-decoration:line-through}
-  .card.now{background:var(--accent);color:#08331f;font-weight:700;text-decoration:none;opacity:1}
-  .mid{grid-column:2;grid-row:2;text-align:center;background:#0a1826;border:1px solid var(--line);
+  .card.now{background:var(--accent);color:var(--onaccent);font-weight:700;text-decoration:none;opacity:1}
+  .mid{grid-column:2;grid-row:2;text-align:center;background:var(--well);border:1px solid var(--line);
     border-radius:10px;padding:8px 10px;min-width:98px}
   .mid .dlr{font-size:11px;color:var(--dim)} .mid .ct{font-size:19px;font-weight:700;margin-top:3px}
   /* current trick laid out on the "table": cards at each seat's direction, contract in the middle */
   .tablecards{display:grid;grid-template-columns:1fr auto 1fr;grid-template-rows:auto auto auto;
-    align-items:center;justify-items:center;column-gap:5px;min-height:56px;margin-top:2px}
+    align-items:center;justify-items:center;column-gap:8px;min-height:56px;margin-top:2px}
   .tablecards .tc{min-width:14px;min-height:19px;font-size:15px;line-height:1;white-space:nowrap;
     display:flex;align-items:center;justify-content:center}
   .tc[data-pos="top"]{grid-column:2;grid-row:1} .tc[data-pos="bottom"]{grid-column:2;grid-row:3}
   .tc[data-pos="left"]{grid-column:1;grid-row:2} .tc[data-pos="right"]{grid-column:3;grid-row:2}
   .tablecards .ct{grid-column:2;grid-row:2;margin-top:0}
+  .tc:not(:empty){background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:2px 3px}
+  .playing .rslt{display:none}
   .tc.win{box-shadow:inset 0 -2px 0 var(--accent);border-radius:3px}
-  .rslt{font-size:13px;color:#8ea0bd;font-weight:400}
-  .vred{color:#ff7a7a!important}
+  .rslt{font-size:13px;color:var(--dim);font-weight:400}
+  .vred{color:var(--vred)!important}
   .panels{display:flex;flex-wrap:wrap;gap:14px;margin-top:16px}
   .box{flex:1 1 250px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
   .box h2{margin:0 0 9px;font-size:11px;letter-spacing:.06em;color:var(--dim);text-transform:uppercase;font-weight:600}
   table{border-collapse:collapse;width:100%}
   .auc th{color:var(--dim);font-weight:600;font-size:11px;padding:2px 4px;border-bottom:1px solid var(--line)}
   .auc td{text-align:center;padding:4px;font-size:14px}
-  .call.pass{color:var(--dim)} .call.dbl{color:#ff9d5e;font-weight:700}
+  .call.pass{color:var(--dim)} .call.dbl{color:var(--x);font-weight:700}
   .dd th,.dd td{text-align:center;padding:3px 7px;font-size:13px;border:1px solid var(--line)}
   .dd th{color:var(--dim);font-weight:600}
-  .dd td.make{color:var(--accent);font-weight:700} .dd td.lo{color:#5a6a80}
+  .dd td.make{color:var(--accent);font-weight:700} .dd td.lo{color:var(--dim)}
   .par{margin-top:9px;font-size:13px;color:var(--dim)} .par b{color:var(--ink)}
   .pardecl{color:var(--gold)}
   .play{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
-  .play button{background:#0d1c2e;border:1px solid var(--line);color:var(--ink);border-radius:8px;
+  .play button{background:var(--btn);border:1px solid var(--line);color:var(--ink);border-radius:8px;
     padding:7px 12px;font-size:14px;cursor:pointer;min-width:40px} .play button:hover{border-color:var(--accent)}
   .play button:disabled{opacity:.35;cursor:default}
   .play .tk{color:var(--dim);font-size:12px;margin-left:auto}
   .pl-load{color:var(--dim);font-size:12.5px;padding:7px 2px}
   /* interactive play (#5) */
-  .pmode{display:flex;gap:6px;margin-bottom:11px}
-  .pmode .pm{background:#0d1c2e;border:1px solid var(--line);color:var(--dim);border-radius:8px;
-    padding:5px 11px;font-size:12px;cursor:pointer}
-  .pmode .pm.on{background:#123049;color:var(--ink);border-color:var(--accent)}
+  .pmode{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:11px}
+  .pmode .pm{background:var(--btn);border:1px solid var(--line);color:var(--dim);border-radius:8px;
+    padding:5px 11px;font-size:12px;cursor:pointer;white-space:nowrap}
+  .pmode .pm.on{background:var(--sel);color:var(--ink);border-color:var(--accent)}
   .pmode .pm:hover{color:var(--ink)}
   .card.legal{cursor:pointer;box-shadow:inset 0 -2px 0 var(--accent);border-radius:3px}
-  .card.legal:hover{background:var(--accent);color:#08331f;font-weight:700}
-  .card.leadcard{outline:1.5px solid var(--accent)} .card.leadcard.cost{outline-color:#ffab5e}
+  .card.legal:hover{background:var(--accent);color:var(--onaccent);font-weight:700}
+  .card.legal:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .card.leadcard{outline:1.5px solid var(--accent)} .card.leadcard.cost{outline-color:var(--warn)}
   .seat.facedown .card.leadcard{outline:none}
   .quiz .ddbox,.quiz .leadsbox,.quiz #leadline,.quiz #audit,.quiz .rslt{display:none}
   .quiz .card.leadcard{outline:none}
@@ -96,52 +101,55 @@
   .blindonly{display:none} .blind .blindonly{display:block}
   .quiz #tools,.blind #tools{display:none}
   .task .iptr,.task .play:not(.taskbtns) button,.task #ipdd,.task #ipfb,.task #ipaudit,.task #audit,
-  .task .blindonly,.task .ipmsg{display:none}
+  .task .blindonly,.task .ipmsg,.task .ipres,.task .tchint{display:none}
   #audit,#ipaudit{font-size:12.5px;color:var(--dim);margin-bottom:6px}
-  #audit button,#ipaudit button{background:none;border:0;color:#ffab5e;cursor:pointer;font:inherit;padding:0 3px}
+  #audit button,#ipaudit button{background:none;border:0;color:var(--warn);cursor:pointer;font:inherit;padding:0 3px}
   #audit button:hover,#ipaudit button:hover{text-decoration:underline}
-  .ldrow{margin:2px 0;font-size:13px} .ldrow>b{display:inline-block;min-width:58px;color:var(--dim);font-weight:600}
-  .ldrow span.ld{margin-right:6px} .ldrow span.ld.l{outline:1.5px solid var(--accent);border-radius:3px;padding:0 1px}
+  .ldrow{display:flex;flex-wrap:wrap;gap:0 10px;margin:2px 0;font-size:13px} .ldrow>b{min-width:58px;color:var(--dim);font-weight:600}
+  .ldrow span.ld{white-space:nowrap} .ldrow .cost{color:var(--warn)} .ldrow span.ld.l{outline:1.5px solid var(--accent);border-radius:3px;padding:0 1px}
   .seat.toplay{outline:2px solid var(--accent);outline-offset:2px;box-shadow:0 0 0 4px rgba(94,224,160,.12)}
   .table.ipmode .seat.onlead{outline:none} .table.ipmode .leadmark{display:none}
-  .ipmsg{color:#66788f;font-size:11.5px;margin-top:9px;line-height:1.4}
+  .ipmsg{color:var(--dim);font-size:12.5px;margin-top:9px;line-height:1.4}
   .ipdd{color:var(--dim);font-size:12.5px;margin-top:8px} .ipdd b{color:var(--accent)}
-  .ipfb{color:#ffab5e;font-size:12px;margin-top:4px;min-height:15px}
-  .ipdim{color:#5a6a80}
+  .ipfb{color:var(--warn);font-size:12px;margin-top:4px;min-height:15px}
+  .ipres{font-size:14px;font-weight:600;margin-top:7px;color:var(--accent)} .ipres.down{color:var(--he)} .ipres:empty{display:none}
+  .ipdim{color:var(--dim)}
   .tcbar{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:9px;font-size:12px;color:var(--dim)}
-  .tcbar .tcb,.tcbar select{background:#0d1c2e;border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer}
+  .tcbar .tcb,.tcbar select{background:var(--btn);border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer}
   .tcbar select{color:var(--ink);padding:4px 6px} .tcbar .tcb:hover{color:var(--ink)}
-  .tcbar .tcb.on{background:#123049;color:var(--ink);border-color:var(--accent)}
+  .tcbar .tcb.on{background:var(--sel);color:var(--ink);border-color:var(--accent)}
   .tcform{display:inline-flex;flex-wrap:wrap;gap:6px} .tcform[hidden]{display:none}
   .quiz .tcbar,.task .tcbar{display:none} .task .dd td[data-tc]{pointer-events:none}
-  .dd td[data-tc]{cursor:pointer} .dd td[data-tc]:hover{outline:1px solid var(--accent)}
-  .ddv{font-size:9px;font-weight:700;margin-left:1px;vertical-align:super;line-height:0}
+  .dd td[data-tc]{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px} .dd td[data-tc]:hover,.dd td.sel{outline:1px solid var(--accent)}
+  .tchint{font-size:12px;color:var(--dim);margin-top:4px}
+  .ddv{font-size:11px;font-weight:700;margin-left:1px;vertical-align:super;line-height:0}
   .ddv.made{color:var(--accent)} .ddv.set{color:var(--he)}
   .iptr{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:9px}
   .iptr .trl{color:var(--dim);font-size:12px;margin-right:1px}
-  .tr{background:#0d1c2e;border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer}
-  .tr.on{background:#123049;color:var(--ink);border-color:var(--accent)} .tr:hover{color:var(--ink)}
-  #trhide{margin-left:6px} #trhide.on{background:#3a1a1a;border-color:var(--he);color:#ffd0d0}
+  .tr{background:var(--btn);border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer}
+  .tr.on{background:var(--sel);color:var(--ink);border-color:var(--accent)} .tr:hover{color:var(--ink)}
+  #trhide{margin-left:6px} #trhide.on{background:var(--off);border-color:var(--he);color:var(--offink)}
   /* single-dummy hide: the DD hands go face-down (ranks concealed) */
   .seat.facedown .hand{pointer-events:none;user-select:none}
   .seat.facedown .suit .s{opacity:.22}
-  .seat.facedown .card{color:transparent;background:#26385c;border-radius:2px;box-shadow:inset 0 0 0 1px #3a4f78;
+  .seat.facedown .card{color:transparent;background:var(--back);border-radius:2px;box-shadow:inset 0 0 0 1px var(--backline);
     min-width:13px;text-align:center}
   .seat.facedown .card.played{opacity:.3}
-  /* trick history: a scrollable strip of completed tricks, winner card marked */
-  .ipth{display:flex;gap:5px;overflow-x:auto;margin-top:7px;padding-bottom:2px;align-items:center}
+  /* trick history: the completed tricks, winner card marked */
+  .ipth{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;padding-bottom:2px;align-items:center}
   .ipth .thlab{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.05em;flex:0 0 auto}
-  .tht{display:inline-flex;align-items:center;gap:3px;background:#0a1826;border:1px solid var(--line);
+  .tht{display:inline-flex;align-items:center;gap:3px;background:var(--well);border:1px solid var(--line);
     border-radius:6px;padding:2px 6px;font-size:11.5px;white-space:nowrap;flex:0 0 auto}
-  .tht .thn{color:#5a6a80;font-size:9px} .thc{opacity:.62} .thc .who,.tht .who{display:none}
+  .tht .thn{color:var(--dim);font-size:10px} .thc{opacity:.62} .thc .who,.tht .who{display:none}
   .thc.w{opacity:1;box-shadow:inset 0 -2px 0 var(--accent);border-radius:2px}
-  .play button.on{background:#123049;color:var(--ink);border-color:var(--accent)}
+  .play button.on{background:var(--sel);color:var(--ink);border-color:var(--accent)}
   .trick{display:flex;gap:7px;align-items:center;min-height:30px;margin-top:9px;flex-wrap:wrap}
-  .trick .pc{background:#0a1826;border:1px solid var(--line);border-radius:7px;padding:3px 8px;font-size:15px}
-  .trick .pc.win{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:#0e2a1e}
+  .trick .pc{background:var(--well);border:1px solid var(--line);border-radius:7px;padding:3px 8px;font-size:15px}
+  .trick .pc.win{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--won)}
   .trick .pc .who{color:var(--dim);font-size:10px;margin-right:5px}
   .empty{color:var(--dim);text-align:center;padding:50px 10px}
-  .note{color:#66788f;font-size:11px;margin-top:18px;text-align:center}
+  .note{color:var(--dim);font-size:12px;margin-top:18px;text-align:center}
+  #tray{display:none}
   /* Vertical density pass — fit the whole viewer (compass + auction + DD + play panel) within one
      1080p screen. Trims padding, gaps and line-heights only; nothing structural. */
   body{line-height:1.4}
@@ -153,17 +161,45 @@
   .play{gap:7px;margin-top:7px} .play button{padding:5px 11px} .pl-load{padding:5px 2px}
   .pmode{margin-bottom:8px} .ipmsg{margin-top:6px} .ipdd{margin-top:6px}
   .ipfb{margin-top:3px;min-height:14px} .trick{min-height:24px;margin-top:6px} .note{margin-top:9px}
+  /* a light system gets light colours: the page opens from light results pages */
+  @media (prefers-color-scheme:light){
+    :root{color-scheme:light; --panel:#fff; --line:#c5ccd6; --ink:#1a2330; --dim:#55637a; --accent:#0a7a4f; --onaccent:#fff;
+      --sp:#111827; --he:#c8102e; --di:#c25a00; --cl:#0a7a3c; --gold:#8a5a1a; --warn:#b45309; --link:#0b63b8; --x:#b45309; --vred:#c8102e;
+      --bg:#e9eef4; --bg2:#f7f9fb; --felt:#d9e8ef; --felt2:#c9dce6; --well:#f3f5f8; --btn:#f3f5f8; --sel:#dff3e9;
+      --back:#cdd6e2; --backline:#aab6c6; --won:#dff3e9; --off:#fbe3e3; --offink:#8a1020; }
+    .table{box-shadow:0 6px 24px rgba(0,0,0,.12)}
+  }
+  /* under a finger: what answers a card stays next to the table and the hand on turn comes again below
+     it in cards a finger can hit; tabs and settings go under the play */
+  @media screen and (max-width:560px),screen and (pointer:coarse){
+    #app{display:flex;flex-direction:column} #app>*{order:4;flex:none}
+    #app>.table{order:0} #app>#tray{order:1} #app>#playbox{order:2} #app>.panels{order:3}
+    #tray:not(:empty){display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+    .trc{min-width:46px;min-height:44px;padding:0 4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;
+      color:var(--ink);font-size:16px;cursor:pointer} .trc .ddv{font-size:12px}
+    #playbox h2,.trick{display:none} .pl-body{display:flex;flex-direction:column} .pl-body>*{order:1}
+    .pl-body>.ipfb,.pl-body>.ipdd,.pl-body>.ipres,.pl-body>.ldrow,.pl-body>.pl-load,.pl-body>#taskbox,.pl-body>.ipmsg.first{order:0}
+    .pl-body>.ipth{order:2} .pl-body>.pmode,.pl-body>.iptr{order:3;margin:9px 0 0} .pl-body>.ipmsg{order:4}
+    .play .tk{order:-1;flex:0 0 100%;margin-left:0}
+    .play button{padding:6px 9px;font-size:13px;min-height:38px} .pmode .pm,.tr,.tcbar .tcb,.tcbar select{min-height:36px}
+    .keys{display:none}
+  }
+  @media screen and (max-width:420px){
+    .table{gap:4px;padding:6px} .seat{padding:4px 6px}
+    .suit{gap:1px 3px;letter-spacing:0;padding-left:15px} .suit .s{margin-left:-15px}
+    .mid{padding:4px 3px;min-width:0} .tablecards{column-gap:4px} .mid .ct{font-size:15px;white-space:nowrap} .tablecards .tc{font-size:13px}
+  }
   /* a sheet for the printer: the deal, the auction and the double-dummy, in ink */
   @media print{
     :root{--panel:#fff;--line:#999;--ink:#000;--dim:#333;--accent:#000;--sp:#000;--he:#c8102e;--di:#d9730d;--cl:#0a7a3c;--gold:#000}
     *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     body{background:#fff;color:#000;min-height:0} .top h1{color:#000} .wrap{max-width:none;padding:6px 0}
-    .top{padding:0 0 6px} #rotate,#tools,#setbar,#back,#playbox,.tcbar,.note,.tc{display:none!important}
+    .top{padding:0 0 6px} #rotate,#tools,#setbar,#back,#playbox,.tcbar,.tchint,.note,.tc{display:none!important}
     .table{background:none;box-shadow:none;border-color:#999} .mid{background:#fff}
     .seat{max-width:none} .seat.toplay,.seat.onlead{outline:none;box-shadow:none}
     .card,.card.played,.card.now,.card.legal,.seat.facedown .card{opacity:1;text-decoration:none;background:none;color:inherit;font-weight:400;box-shadow:none}
     .seat.facedown .suit .s{opacity:1}
-    .ddv{display:none} .dd td.lo{color:#666} .box{break-inside:avoid}
+    .ddv{display:none} .playing .rslt{display:inline!important} .dd td.lo{color:#666} .dd td[data-tc]{text-decoration:none} .box{break-inside:avoid}
   }
 </style>
 </head>
@@ -191,8 +227,9 @@ const LANG=window.HV_LANG||{}, T=(en,...a)=>(LANG.text&&LANG.text[en]||en.split(
 const NM={n:T("North"),e:T("East"),s:T("South"),w:T("West")};
 function trk(n){ return LANG.tricks?LANG.tricks(n):`${n} trick${n===1?"":"s"}`; }
 const gaveUp=n=>T("gave up {0} vs. double-dummy",trk(n));
+const tip=t=>`title="${t}" aria-label="${t}"`;                                 // for a button with only a sign on it
 document.documentElement.lang=LANG.lang||"en"; document.title=document.querySelector(".top h1").textContent=T("Hand viewer");
-document.querySelectorAll("[title]").forEach(e=>{ e.title=T(e.title); });
+document.querySelectorAll("[title]").forEach(e=>{ e.title=T(e.title); e.setAttribute("aria-label",e.title); });
 document.getElementById("back").innerHTML=`&larr; ${T("back")}`; document.querySelector(".empty").textContent=T("No deal in the link.");
 // a= also comes run together, as in BBO's own handviewer links (ppp3NDppp, D and R for the doubles),
 // and such a link gives the contract nowhere else: put the calls in our form and read c= and dl=
@@ -241,10 +278,10 @@ function parseHand(str){ const out={s:"",h:"",d:"",c:""}; let cur=null;
 function suitSym(ch){ const l=ch.toLowerCase(); return SUIT[l]?`<span class="${SUIT[l].c}">${SUIT[l].sym}</span>`:esc(ch); }
 function handHTML(h, seat){ return ORDER.split("").map(su=>{
     const cards=(h[su]||"").split("").map(r=>`<span class="card" data-c="${seat}${su}${r.toLowerCase()}">${r==="T"?"10":r}</span>`).join("");
-    return `<div class="suit ${SUIT[su].c}"><span class="s">${SUIT[su].sym}</span>${cards||'<span style="color:#556">—</span>'}</div>`;
+    return `<div class="suit ${SUIT[su].c}"><span class="s">${SUIT[su].sym}</span>${cards||'<span style="color:var(--dim)">—</span>'}</div>`;
   }).join(""); }
 function fmtContract(c){ const m=(c||"").match(/^(\d)(NT|[shdc])(x{0,2})/i); if(!m) return esc(c||"");
-  const dbl=m[3]?` <span style="color:#ff9d5e">${m[3].toUpperCase()}</span>`:"";
+  const dbl=m[3]?` <span style="color:var(--x)">${m[3].toUpperCase()}</span>`:"";
   return `${m[1]}${m[2].toUpperCase()==="NT"?"NT":suitSym(m[2])}${dbl}`; }
 function fmtPar(par){ const m=(par||"").match(/^(\d)(NT|[shdc])([nesw])?(.*)$/i); if(!m) return esc(par||"");
   const strain=m[2].toUpperCase()==="NT"?"NT":suitSym(m[2]);
@@ -254,7 +291,7 @@ function fmtPar(par){ const m=(par||"").match(/^(\d)(NT|[shdc])([nesw])?(.*)$/i)
 function auctionHTML(a, dealer){
   const calls=a.split(/[-,]/).filter(x=>x!==""); const cols=["w","n","e","s"];
   const head="<tr>"+cols.map(c=>`<th>${c.toUpperCase()}</th>`).join("")+"</tr>";
-  const cells=[]; for(let i=0;i<cols.indexOf(dealer);i++) cells.push('<td style="color:#3a4a63">·</td>');
+  const cells=[]; for(let i=0;i<cols.indexOf(dealer);i++) cells.push('<td style="color:var(--line)">·</td>');
   for(const c of calls) cells.push(`<td>${fmtCall(c)}</td>`);
   while(cells.length%4) cells.push("<td></td>");
   let rows=""; for(let i=0;i<cells.length;i+=4) rows+="<tr>"+cells.slice(i,i+4).join("")+"</tr>";
@@ -270,7 +307,7 @@ let DEALER="n", VUL="-", PAR_NS=null;
 function ddBox(dd){ const own=calcPar(dd,DEALER,VUL), par=q.get("par")||own, m=own.match(/NS ([+-]?\d+)$/);
   PAR_NS=own==="Passed out"?0:m?+m[1]:null;
   const shown=par==="Passed out"?T("Passed out"):fmtPar(par);
-  return `<div class="box ddbox"><h2>${T("Double-dummy — makeable tricks")}</h2>${ddHTML(dd)}${par?`<div class="par">${T("Par")}: <b>${shown}</b></div>`:""}</div>`; }
+  return `<div class="box ddbox"><h2>${T("Double-dummy — makeable tricks")}</h2>${ddHTML(dd)}${par?`<div class="par">${T("Par")}: <b>${shown}</b></div>`:""}${TC_OK?`<div class="tchint">${T("click a cell to try that contract")}</div>`:""}</div>`; }
 function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","s","e","w"];
   const IDX={n:0,e:1,s:2,w:3};   // dd is packed seat-major N,E,S,W — map each display row to its block
   let g=`<table class="dd"><tr><th></th>${strains.map(s=>`<th>${s==="NT"?"NT":suitSym(s)}</th>`).join("")}</tr>`;
@@ -385,10 +422,13 @@ function pbnText({event,site,date,hands,dealer,vul,board,contract,decl,result,au
 // dd=. api= names that API and an empty api= turns it off; a link without the param finds it at
 // API_DEFAULT on this site, once the page is up (findAPI).
 const API_DEFAULT="/api/ddline";
+// view=1: the deal alone, for a teacher who sets it as a problem. No double-dummy of any kind and nothing
+// of the table's lead or result, whatever the link carries, and nothing highlighted; playing it stays a tab away.
+const VIEW=q.get("view")==="1"; if(VIEW){ q.set("api",""); ["dd","par","l","r"].forEach(k=>q.delete(k)); if(!ACTUAL) q.delete("p"); }
 let API=q.get("api")||"";
 // opening a deal from a results page with its recorded play (pa=1) means the visitor asked
 // for that line, so start on it; otherwise the interactive tab is the useful default
-let BLIND=q.get("blind")==="1", SEQ=null, POS=Math.max(0,parseInt(q.get("pos"))||0), PLAYMODE=q.get("task")==="1"?"task":q.get("quiz")==="1"?"quiz":q.has("pos")||ACTUAL&&!q.has("at")&&!BLIND?"dd":"ip", IP=null, HANDS=null, DECL="", LEADER0="", TRUMP="NT";
+let BLIND=q.get("blind")==="1", SEQ=null, POS=Math.max(0,parseInt(q.get("pos"))||0), PLAYMODE=q.get("task")==="1"?"task":q.get("quiz")==="1"?"quiz":VIEW&&!q.has("at")&&!(ACTUAL&&q.has("pos"))?"view":q.has("pos")||ACTUAL&&!q.has("at")&&!BLIND?"dd":"ip", IP=null, HANDS=null, DECL="", LEADER0="", TRUMP="NT";
 // NEED: tricks the contract needs. CAN_IP: "Play it yourself" needs a contract and a real declarer
 // seat (it starts from declarer's LHO); a baked p= line alone gets only the stepper.
 let NEED=7, CAN_IP=false, AUTO=null;
@@ -423,8 +463,9 @@ function evalOf(j){ const tricks=v=>Number.isInteger(v)&&v>=0&&v<=13;
   return Object.keys(cards).length?{side:j.side,best:j.best,cards}:null; }
 // the current trick laid out on the "table" (centre), each card at its player's seat direction
 // (following the rotation) — so plays stay visible even when the played hand is hidden face-down.
+let ON_TABLE=[[],null];
 function renderTableCards(trick, winSeat){
-  const box=document.querySelector(".tablecards"); if(!box) return;
+  const box=document.querySelector(".tablecards"); if(!box) return; ON_TABLE=[trick,winSeat];
   const B=bottomSeat, pos={[B]:"bottom",[NEXT[B]]:"left",[PARTNER[B]]:"top",[RHO[B]]:"right"};
   const slots={top:"",bottom:"",left:"",right:""};
   for(const t of (trick||[])){ const p=pos[t.who]; if(p) slots[p]=cardHTML(t.card); }
@@ -475,18 +516,18 @@ function render(){
   const playbox=`<div class="box" id="playbox" style="margin-top:9px;display:none">
     <h2>${T("Play")}</h2><div class="pl-body"></div></div>`;
 
-  app.innerHTML=comp+panels+tcBar()+playbox+
-    `<div class="note">${T("Four-colour suits")} · ${ACTUAL?T("the line shown is the table’s actual card play"):T("the line shown is double-dummy optimal, not the table’s actual play")}<br>${T("Keys — both tabs: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>Home</b>/<b>End</b> start and end · line: <b>space</b> auto · play: <b>R</b> restart, <b>B</b> best line, <b>C</b> claim")}</div>`;
+  app.innerHTML=comp+`<div id="tray"></div>`+panels+tcBar()+playbox+
+    `<div class="note">${T("Four-colour suits")}${VIEW?"":` · ${ACTUAL?T("the line shown is the table’s actual card play"):T("the line shown is double-dummy optimal, not the table’s actual play")}`}<span class="keys"><br>${T("Keys: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>↑</b> or <b>Home</b> start, <b>End</b> finish · line: <b>space</b> auto · play: <b>Tab</b> and <b>Enter</b> pick a card, <b>U</b> or <b>Backspace</b> back, <b>R</b> restart, <b>B</b> best line, <b>C</b> claim · set: <b>PgUp</b>/<b>PgDn</b> deals, <b>Enter</b> next")}</span></div>`;
   const bd=/^\d+$/.test(q.get("b")||"")?q.get("b"):"";                 // digits only: it reaches innerHTML
   if(bd) document.title=`${T("Board")} ${bd} · ${T("Hand viewer")}`;
-  document.getElementById("sub").innerHTML=(bd?`${T("Board")} ${bd}${contract?" · ":""}`:"")+(contract?fmtContract(contract):"")+(result?` <span class="rslt">${esc(result)}</span>`:"")+(decl?` ${T("by")} ${esc(decl.toUpperCase())}`:"")+(TC?` · ${T("practice contract")}`:"");
+  document.getElementById("sub").innerHTML=(bd?`${T("Board")} ${bd}${contract?" · ":""}`:"")+(contract?fmtContract(contract):"")+(decl?` ${esc(decl.toUpperCase())}`:"")+(result?` <span class="rslt">${esc(result)}</span>`:"")+(TC?` · ${T("practice contract")}`:"");
   wireTC();
   const back=document.getElementById("back"), b=q.get("back");
   // only http/https (resolved against this page) — blocks javascript:/data: back links
   if(b){ try{ const url=new URL(b, location.href);
     if(url.protocol==="http:"||url.protocol==="https:"){ back.href=url.href; back.style.display=""; } }catch(e){} }
   const rot=document.getElementById("rotate");
-  if(rot){ rot.style.display=""; rot.onclick=()=>{ bottomSeat=NEXT[bottomSeat]; applyRotation(); }; }
+  if(rot){ rot.style.display=""; rot.onclick=()=>{ bottomSeat=NEXT[bottomSeat]; applyRotation(); renderTableCards(...ON_TABLE); }; }
   document.getElementById("tools").style.display="";
   document.getElementById("print").onclick=()=>window.print();
   document.getElementById("svg").onclick=()=>saveFile(new Blob([dealSVG()],{type:"image/svg+xml"}),"svg");
@@ -500,7 +541,7 @@ function render(){
 }
 
 // another contract or declarer: the form under the panels, which a cell of the double-dummy grid fills
-function tcBar(){ if(!TC_OK) return "";
+function tcBar(){ if(!TC_OK||VIEW) return "";
   const m=(q.get("c")||"").match(/^(\d)(nt|[shdc])(x{0,2})/i)||[], st=(m[2]||"nt").toLowerCase(), x=(m[3]||"").toLowerCase();
   const sel=(id,opts,cur)=>`<select id="${id}">${opts.map(([v,l])=>`<option value="${v}"${v===cur?" selected":""}>${l}</option>`).join("")}</select>`;
   const was=TC&&TC.c?`${fmtContract(TC.c)}${NM[TC.dl]?` ${TC.dl.toUpperCase()}`:""}`:"";
@@ -523,7 +564,9 @@ function wireTC(){ const f=document.getElementById("tcform"); if(!f) return;
   if(back) back.onclick=()=>go("");
   // a cell only fills the form: one stray click in the grid must not cost the hand being played
   document.getElementById("app").addEventListener("click",e=>{ const td=e.target.closest("td[data-tc]"), t=td&&parseTC(td.dataset.tc);
-    if(!t) return; lv.value=t.c[0]; st.value=t.c.slice(1); x.value=""; dl.value=t.dl; f.hidden=false; }); }
+    if(!t) return; lv.value=t.c[0]; st.value=t.c.slice(1); x.value=""; dl.value=t.dl; f.hidden=false;
+    document.querySelectorAll(".dd td.sel").forEach(c=>c.classList.remove("sel")); td.classList.add("sel");
+    f.scrollIntoView({block:"nearest",behavior:"smooth"}); }); }
 
 // the deal as a picture: the four hands and the contract, whatever the table shows right now
 function dealSVG(){ const col={s:"#111",h:"#c8102e",d:"#d9730d",c:"#0a7a3c"}, bd=/^\d+$/.test(q.get("b")||"")?q.get("b"):"";
@@ -558,15 +601,15 @@ function setScore(){ try{ return JSON.parse(localStorage.getItem(setKey()))||{};
 function setMark(ok){ if(!SET) return; try{ const s=setScore();
     if(!(SETI in s)){ s[SETI]=ok?1:0; localStorage.setItem(setKey(),JSON.stringify(s)); } }catch(e){}
   setBar(); }
-function setGo(i,redirect){ const p=new URLSearchParams(SET.deals[i]);
-  ["set","api","back"].forEach(k=>{ if(q.has(k)) p.set(k,q.get(k)); });
+function setGo(i,redirect){ const p=new URLSearchParams(SET.deals[i]), link=new URLSearchParams(location.search);
+  ["set","api","back"].forEach(k=>{ if(link.has(k)) p.set(k,link.get(k)); });
   if(!MODES.some(k=>p.has(k))){ const m=SET.mode||MODES.find(k=>q.has(k)); if(m) p.set(m,"1"); }   // a deal's own mode wins
   p.set("i",i); location[redirect?"replace":"assign"](location.pathname+"?"+p); }
 function setBar(){ const n=SET.deals.length, s=Object.values(setScore()), good=s.filter(Boolean).length;
   document.getElementById("setbar").innerHTML=(SET.title?`<span>${esc(SET.title)}</span>`:"")+
-    `<button class="tbtn" id="sprev" title="${T("previous deal (PgUp)")}"${SETI?"":" disabled"}>‹</button><span>${SETI+1}/${n}</span>
-    <button class="tbtn" id="snext" title="${T("next deal (PgDn)")}"${SETI<n-1?"":" disabled"}>›</button>`+
-    (s.length?`<b>✓ ${good}/${s.length}</b><button class="tbtn" id="sreset" title="${T("clear the score")}">↺</button>`:"");
+    `<button class="tbtn" id="sprev" ${tip(T("previous deal (PgUp)"))}${SETI?"":" disabled"}>‹</button><span>${SETI+1}/${n}</span>
+    <button class="tbtn" id="snext" ${tip(T("next deal (PgDn)"))}${SETI<n-1?"":" disabled"}>›</button>`+
+    (s.length?`<b>${s.length===n?T("End of the set: {0} of {1} at the first try",good,s.length):T("Found at the first try: {0} of {1}",good,s.length)}</b><button class="tbtn" id="sreset" title="${T("clear the score")}">${T("reset")}</button>`:"");
   document.getElementById("sprev").onclick=()=>setGo(SETI-1); document.getElementById("snext").onclick=()=>setGo(SETI+1);
   const r=document.getElementById("sreset"); if(r) r.onclick=()=>{ try{ localStorage.removeItem(setKey()); }catch(e){} setBar(); }; }
 async function setLoad(){ try{ const u=new URL(q.get("set"),location.href); if(u.origin!==location.origin) return;
@@ -578,11 +621,11 @@ async function setLoad(){ try{ const u=new URL(q.get("set"),location.href); if(u
   if(["n","e","s","w"].some(s=>q.get(s))) setBar(); else setGo(SETI,true); }
 const setNextBtn=()=>SET&&SETI<SET.deals.length-1?`<button id="setnext">${T("Next deal")} ▶</button>`:"";
 function wireSetNext(){ const b=document.getElementById("setnext"); if(b) b.onclick=()=>setGo(SETI+1); }
-const LINK_BTN=`<button id="plink" title="${T("copy a link to this position")}">⧉</button>`;
-const PLAY_CONTROLS=`<div class="play"><button id="pf" title="${T("restart")}">⏮</button><button id="pp">◀</button>
-    <button id="pn">▶</button><button id="pt">${T("trick")} ▶▶</button>
+const LINK_BTN=`<button id="plink" ${tip(T("copy a link to this position"))}>⧉</button>`;
+const PLAY_CONTROLS=`<div class="play"><button id="pf" ${tip(T("restart"))}>⏮</button><button id="pp" ${tip(T("one card back"))}>◀</button>
+    <button id="pn" ${tip(T("one card forward"))}>▶</button><button id="pt">${T("trick")} ▶▶</button>
     <button id="pa">▶ ${T("auto")}</button>${LINK_BTN}<span class="tk" id="ptk"></span></div>
-  <div class="trick" id="ptv"></div><div class="ipfb" id="pfb"></div>`;
+  <div class="ipres" id="pres" role="status"></div><div class="trick" id="ptv"></div><div class="ipfb" id="pfb"></div>`;
 // a link to this very position: at= the cards played yourself, pos= the step of the line
 function copyLink(btn,name,val){ const u=new URL(location.href);
   ["at","pos","quiz","blind","task"].forEach(k=>u.searchParams.delete(k)); if(val) u.searchParams.set(name,val);
@@ -594,10 +637,12 @@ function renderPlay(){
   stopAuto(); clearTimeout(autoTimer); if(IP) IP.solving=false;   // the old tab's timers must not outlive it
   clearBoard(); renderTableCards([],null);
   document.body.classList.remove("quiz","blind","task"); document.querySelectorAll(".seat").forEach(s=>s.classList.remove("facedown"));
-  const tbl=document.querySelector(".table"); if(tbl) tbl.classList.toggle("ipmode", ipTab());
-  const tabs=`<div class="pmode">`+[["dd",ACTUAL?T("Card play at the table"):T("Double-dummy line")],["ip",T("Play it yourself")],["quiz",T("Guess the lead")],["task",T("Find the card")]].filter(([m])=>m==="dd"||CAN_IP&&(m==="ip"||API||PLAYMODE===m)).map(([m,l])=>
-      `<button class="pm${PLAYMODE===m?" on":""}" data-mode="${m}">${l}</button>`).join("")+`</div>`;
-  if(PLAYMODE==="ip"){ body.innerHTML=tabs+IP_CONTROLS; wireInteractive(); }
+  const tbl=document.querySelector(".table"); if(tbl) tbl.classList.toggle("ipmode", ipTab()||PLAYMODE==="view");
+  document.body.classList.toggle("playing",ipTab());
+  const tabs=`<div class="pmode" role="tablist">`+[["view",T("Deal")],["dd",ACTUAL?T("Card play at the table"):T("Double-dummy line")],["ip",T("Play it yourself")],["quiz",T("Guess the lead")],["task",T("Find the card")]].filter(([m])=>m==="view"?VIEW&&CAN_IP:m==="dd"?!VIEW||SEQ:CAN_IP&&(m==="ip"||API||PLAYMODE===m)).map(([m,l])=>
+      `<button class="pm${PLAYMODE===m?" on":""}" data-mode="${m}" role="tab" aria-selected="${PLAYMODE===m}">${l}</button>`).join("")+`</div>`;
+  if(PLAYMODE==="view") body.innerHTML=tabs;
+  else if(PLAYMODE==="ip"){ body.innerHTML=tabs+IP_CONTROLS; wireInteractive(); }
   else if(PLAYMODE==="quiz") renderQuiz(body,tabs);
   else if(PLAYMODE==="task") renderTask(body,tabs);
   else if(SEQ){ body.innerHTML=tabs+PLAY_CONTROLS; wirePlay(); }
@@ -636,12 +681,12 @@ async function fetchContinuation(){
 
 // Every opening lead with what declarer then makes, best for the defence first.
 let LEADS=null;
-const resText=d=>d===0?"=":(d>0?"+"+d:""+d);
+const resText=d=>d===0?"=":(d>0?"+"+d:""+d), leadOrder=(a,b)=>ORDER.indexOf(a[0])-ORDER.indexOf(b[0])||RANKV[b[1].toUpperCase()]-RANKV[a[1].toUpperCase()];
 async function leadsBox(){ if(!API||!q.get("c")||!q.get("dl")) return;
   try{ LEADS=evalOf(await (await fetch(apiURL({played:""}))).json()); }catch(e){}
   if(!LEADS) return;
   const by={}, l=(q.get("l")||"").toLowerCase();
-  for(const k of Object.keys(LEADS.cards).sort((a,b)=>ORDER.indexOf(a[0])-ORDER.indexOf(b[0])||RANKV[b[1].toUpperCase()]-RANKV[a[1].toUpperCase()]))
+  for(const k of Object.keys(LEADS.cards).sort(leadOrder))
     (by[13-LEADS.cards[k]]=by[13-LEADS.cards[k]]||[]).push(k);
   const rows=Object.keys(by).map(Number).sort((a,b)=>a-b).map(t=>`<div class="ldrow"><b>${t} (${resText(t-NEED)})</b>${
     by[t].map(k=>`<span class="ld${k===l?" l":""}">${cardHTML(k)}</span>`).join("")}</div>`).join("");
@@ -661,16 +706,18 @@ function renderQuiz(body,tabs){
     const said=c==null?T("Double-dummy is not available here."):c
       ?`▲ ${card} ${T("gives up {0} vs. double-dummy",trk(c))}`
       :`${card} ${T("is double-dummy best|lead")}`;
+    const ev=QUIZ.ev, top=ev?Object.keys(ev.cards).filter(k=>ev.cards[k]===ev.best).sort(leadOrder):[];
+    const best=ev?`<div class="ipdd">${T("Best: {0} · declarer makes {1} ({2})",top.length===Object.keys(ev.cards).length?T("any card"):top.map(cardHTML).join(" "),13-ev.best,resText(13-ev.best-NEED))}</div>`:"";
     const table=(CARD_RE.test(l)?`<div class="ipdd">${T("At the table")}: ${cardHTML(l)}</div>`:"")+fieldLeads();
-    body.innerHTML=tabs+`<div class="${c?"ipfb":"ipdd"}">${said}</div>${table}<div class="play"><button id="qplay">${T("Play on from this lead")} ▶</button>${setNextBtn()}</div>`;
+    body.innerHTML=tabs+`<div class="${c?"ipfb":"ipdd"}">${said}</div>${best}${table}<div class="play"><button id="qplay">${T("Play on from this lead")} ▶</button>${setNextBtn()}</div>`;
     document.getElementById("qplay").onclick=()=>{ q.set("at",QUIZ.key); IP=null; PLAYMODE="ip"; renderPlay(); };
     wireSetNext();
     return; }
-  body.innerHTML=tabs+`<div class="ipmsg">${T("You are {0}, on lead: click the card you would lead.",NM[LEADER0])}</div>`;
+  body.innerHTML=tabs+`<div class="ipmsg first">${T("You are {0}, on lead: click the card you would lead.",NM[LEADER0])}</div>`;
   document.body.classList.add("quiz");
   document.querySelectorAll(".seat").forEach(s=>s.classList.toggle("facedown",!s.classList.contains(LEADER0)));
-  document.querySelectorAll(`.seat.${LEADER0} .card`).forEach(c=>c.classList.add("legal"));
-  const st=document.querySelector(`.seat.${LEADER0}`); if(st) st.classList.add("toplay"); }
+  document.querySelectorAll(`.seat.${LEADER0} .card`).forEach(legalOn);
+  const st=document.querySelector(`.seat.${LEADER0}`); if(st) st.classList.add("toplay"); trayPaint(); }
 async function quizPick(key){ if(quizBusy) return; quizBusy=true; await apiReady; let ev=LEADS;
   if(!ev&&API) try{ ev=evalOf(await (await fetch(apiURL({played:""}))).json()); }catch(e){}
   quizBusy=false; QUIZ={key,ev,cost:ev&&ev.cards[key]!=null?ev.best-ev.cards[key]:null};
@@ -680,9 +727,9 @@ async function quizPick(key){ if(quizBusy) return; quizBusy=true; await apiReady
 function fieldLeads(){ const ol=(q.get("ol")||"").split(",").map(s=>s.match(/^([shdc][2-9tjqka])(\d+)$/i)).filter(Boolean);
   if(!ol.length) return "";
   const ev=QUIZ.ev, n=ol.reduce((a,m)=>a+ +m[2],0);
-  return `<div class="ipdd">${T("The field, {0} tables in this strain with this declarer:",n)}</div><div class="ldrow">`+ol.map(m=>{
+  return `<div class="ipdd">${T("The field, {0} tables in this strain with this declarer (− is what the lead gave up):",n)}</div><div class="ldrow">`+ol.map(m=>{
     const c=m[1].toLowerCase(), cost=ev&&ev.cards[c]!=null?ev.best-ev.cards[c]:0;
-    return `<span class="ld${c===QUIZ.key?" l":""}">${cardHTML(c)} ×${m[2]}${cost?`<sup>−${cost}</sup>`:""}</span>`; }).join("")+`</div>`; }
+    return `<span class="ld${c===QUIZ.key?" l":""}">${cardHTML(c)}: ${m[2]}${cost?` <span class="cost">−${cost}</span>`:""}</span>`; }).join("")+`</div>`; }
 // "Find the card": the line stops at its key moments, where only one card keeps the result. You see
 // what the player on turn sees, the hand and dummy, until the card is found or the answer asked for.
 let TASK=null, taskBusy=false, IPKEEP=null;
@@ -807,12 +854,13 @@ function wirePlay(){
     for(let i=0; i+4<=POS; i+=4){ const w=winner(SEQ.slice(i,i+4),TRUMP);
       if(w==="n"||w==="s") ns++; else ew++; }
     const dside=(DECL==="n"||DECL==="s")?"ns":"ew", dt=dside==="ns"?ns:ew;
-    const done=POS>=SEQ.length&&SEQ.length%4===0, d=dt-NEED, dw=T("declarer");
+    const done=SEQ.length===52&&POS===52&&CAN_IP, d=dt-NEED, dw=T("declarer");
     document.getElementById('ptk').textContent=
       `${T("card")} ${POS}/${SEQ.length} \u00b7 ${T("trick")} ${Math.max(1,Math.ceil(POS/4))}/${Math.ceil(SEQ.length/4)}`
       + ` \u00b7 N-S ${ns} \u2013 E-W ${ew}`
-      + (done ? ` \u00b7 ${dw} ${dt} (${resText(d)})`+(SEQ.length===52?scoreLine(dt):"")
-              : ` \u00b7 ${dw} ${dt}, ${T("needs")} ${NEED}`);
+      + (done ? "" : ` \u00b7 ${dw} ${dt}, ${T("needs")} ${NEED}`);
+    const res=document.getElementById('pres'); res.classList.toggle('down',d<0);
+    res.textContent=done?`${dw} ${dt} (${resText(d)})`+scoreLine(dt):"";
     const lost=AUDIT&&POS?AUDIT[POS-1]:0;
     document.getElementById('pfb').textContent=lost>0?`▲ ${NM[SEQ[POS-1].who]} ${gaveUp(lost)}`:"";
     document.getElementById('pp').disabled=POS===0; document.getElementById('pf').disabled=POS===0;
@@ -837,31 +885,40 @@ function wirePlay(){
 // ---- interactive play (#5): you choose every card for the hand on turn ----
 const IP_CONTROLS=`<div class="iptr"><span class="trl">${T("You play")}</span>
     <button class="tr" data-you="all" title="${T("play all four hands yourself")}">${T("all four")}</button>
-    <button class="tr" data-you="decl" title="${T("you play declarer + dummy; the double-dummy defends")}">${T("declarer")}</button>
+    <button class="tr" data-you="decl" title="${T("you play declarer + dummy; the double-dummy defends")}">${T("declarer|seat")}</button>
     <button class="tr" data-you="def" title="${T("you play both defenders; the double-dummy declares")}">${T("defence")}</button>
     <button class="tr" id="trhide" title="${T("hide the hands the double-dummy plays (dummy stays shown)")}">${T("hide DD hands")}</button>
     <button class="tr" id="trblind" title="${T("play declarer from your two hands; no hints until the last card")}">${T("blind")}</button></div>
-  <div class="play"><button id="ipstart" title="${T("back to the first card, keeping the line ahead")}">⏮</button>
-    <button id="ipu" title="${T("one card back")}">◀</button>
-    <button id="ipf" title="${T("one card forward, along the line ahead or the double-dummy-optimal one")}">▶</button>
+  <div class="play"><button id="ipstart" ${tip(T("back to the first card, keeping the line ahead"))}>⏮</button>
+    <button id="ipu" ${tip(T("one card back"))}>◀</button>
+    <button id="ipf" ${tip(T("one card forward, along the line ahead or the double-dummy-optimal one"))}>▶</button>
     <button id="iptrick" title="${T("to the end of this trick")}">${T("trick")} ▶▶</button>
     <button id="ipr">⟲ ${T("restart|again")}</button>
     <button id="ipbest" title="${T("play out the double-dummy-optimal line from here to the end")}">${T("best line")} ▶</button>
     <button id="ipclaim" title="${T("claim — finish the hand double-dummy instantly and show the result")}">${T("claim")} ✓</button>
-    <button id="ddonce" title="${T("show the double-dummy result of every card in the hand on turn, once")}">${T("show DDS")}</button>
-    <button id="ddauto" title="${T("keep the DDS of the hand on turn shown every trick, until turned off")}">${T("auto DDS")}</button>
+    <button id="ddonce" title="${T("mark every card of the hand on turn with its double-dummy result, to the end of this trick")}">${T("hint")}</button>
+    <button id="ddauto" title="${T("keep marking the cards of the hand on turn, until turned off")}">${T("always hint")}</button>
     ${LINK_BTN}
     <span class="tk" id="iptk"></span></div>
+  <div class="ipres" id="ipres" role="status"></div>
   <div class="trick" id="iptv"></div>
   <div class="ipth" id="ipth"></div>
   <div class="ipdd" id="ipdd"></div>
-  <div class="ipfb" id="ipfb"></div>
+  <div class="ipfb" id="ipfb" role="status"></div>
   <div id="ipaudit"></div>
   <div class="ipmsg blindonly">${T("Blind: you see your two hands only. The defenders play double-dummy, so they see all four hands and never slip. The review opens after the last card.")}</div>
-  <div class="ipmsg">${T("Click a card in the highlighted hand — follow-suit is enforced and the lead passes to the trick winner. The mark on a card is the double-dummy contract result if you play it (=/+1/-1) — green makes, red goes down.")}</div>`;
-function clearBoard(){ document.querySelectorAll('.card').forEach(c=>c.classList.remove('played','now','legal'));
+  <div class="ipmsg">${T("Click a card in the highlighted hand — follow-suit is enforced and the lead passes to the trick winner.")} <span class="hintmsg">${T("Hint marks each card with the double-dummy contract result if you play it (=/+1/-1): green makes, red goes down.")}</span></div>`;
+function clearBoard(){ document.querySelectorAll('.card.legal').forEach(c=>["tabindex","role","aria-label"].forEach(a=>c.removeAttribute(a)));
+  document.querySelectorAll('.card').forEach(c=>c.classList.remove('played','now','legal'));
   document.querySelectorAll('.seat').forEach(s=>s.classList.remove('toplay'));
-  document.querySelectorAll('.card .ddv').forEach(s=>s.remove()); }
+  document.querySelectorAll('.ddv').forEach(s=>s.remove()); trayPaint(false); }
+// a card that can be played by you: with the keyboard too
+function legalOn(el){ const k=el.getAttribute('data-c').slice(1); el.classList.add('legal'); el.tabIndex=0; el.setAttribute('role','button');
+  el.setAttribute('aria-label',`${SUIT[k[0]].sym} ${k[1].toUpperCase()}`); }
+// under a finger the hand on turn comes again below the table (the CSS shows it there and only there)
+function trayPaint(on=true){ const box=document.getElementById("tray"); if(!box) return;
+  box.innerHTML=on?[...document.querySelectorAll(".seat.toplay .card.legal")].map(el=>{ const k=el.getAttribute('data-c').slice(1);
+    return `<button class="trc" data-k="${k}">${cardHTML(k)}</button>`; }).join(""):""; }
 function ipInit(){ IP={rem:{},trick:[],seq:[],leader:LEADER0,turn:LEADER0,ns:0,ew:0,hist:[],redo:[],review:null,done:false,eval:null,curOpt:null,prevOpt:null,moveBy:null,lastMsg:"",solving:false};
   for(const s of ["n","e","s","w"]){ IP.rem[s]=new Set();
     for(const su of "shdc") for(const r of (HANDS[s][su]||"")) IP.rem[s].add(su+r.toLowerCase()); } }
@@ -882,8 +939,8 @@ function ipPlay(key, paint=true){ if(IP.done||!ipTab()) return;
   IP.rem[seat].delete(key); IP.trick.push({card:key,who:seat}); IP.seq.push(key);
   // remember the optimal we're leaving; this card's cost = how far the optimal shifts once the DD
   // of the new position returns (works whether or not the pre-move eval had loaded yet)
-  IP.prevOpt=IP.curOpt; IP.moveBy=seat; IP.curOpt=null; IP.eval=null; IP.lastMsg=""; ddsOnce=false;
-  if(IP.trick.length===4){ const w=winner(IP.trick,TRUMP);
+  IP.prevOpt=IP.curOpt; IP.moveBy=seat; IP.curOpt=null; IP.eval=null; IP.lastMsg="";
+  if(IP.trick.length===4){ const w=winner(IP.trick,TRUMP); ddsOnce=false;
     if(w==="n"||w==="s") IP.ns++; else IP.ew++;
     IP.leader=w; IP.turn=w; if(IP.ns+IP.ew===13) IP.done=true; }
   else IP.turn=NEXT[seat];
@@ -900,10 +957,12 @@ function ipPaint(){ if(!ipTab()) return; clearBoard(); clearTimeout(autoTimer);
     if(!IP.rem[s].has(el.getAttribute('data-c').slice(1))) el.classList.add('played'); });
   if(IP.trick.length){ const last=IP.trick[IP.trick.length-1], el=cardEl(last.card,last.who);
     if(el){ el.classList.remove('played'); el.classList.add('now'); } }
-  let legalKeys=[];
+  let legalKeys=[]; const mine=!isAuto(IP.turn)&&!(PLAYMODE==="task"&&TASK&&TASK.solved);
   if(!IP.done){ const st=document.querySelector(`.seat.${IP.turn}`); if(st) st.classList.add('toplay');
     document.querySelectorAll(`.seat.${IP.turn} .card`).forEach(el=>{ const key=el.getAttribute('data-c').slice(1);
-      if(IP.rem[IP.turn].has(key)&&ipLegal(IP.turn,key,eff)){ el.classList.add('legal'); legalKeys.push(key); } }); }
+      if(IP.rem[IP.turn].has(key)&&ipLegal(IP.turn,key,eff)){ if(mine) legalOn(el); else el.classList.add('legal'); legalKeys.push(key); } }); }
+  trayPaint(mine&&!IP.done&&!IP.solving&&!isHidden(IP.turn));
+  if(keyCard){ const c=document.querySelector('.seat.toplay .card[tabindex]'); if(c){ keyCard=false; c.focus(); } }
   let iwin=-1; if(IP.trick.length===4){ const w=winner(IP.trick,TRUMP); iwin=IP.trick.findIndex(t=>t.who===w); }
   document.getElementById('iptv').innerHTML=IP.trick.map((t,i)=>
     `<span class="pc${i===iwin?' win':(i===IP.trick.length-1&&IP.trick.length<4?' lead':'')}"><span class="who">${t.who.toUpperCase()}</span>${cardHTML(t.card)}</span>`).join("");
@@ -911,8 +970,9 @@ function ipPaint(){ if(!ipTab()) return; clearBoard(); clearTimeout(autoTimer);
   renderTableCards(IP.trick, IP.trick.length===4?winner(IP.trick,TRUMP):null);
   const declSide=(DECL==="n"||DECL==="s")?"ns":"ew", dt=declSide==="ns"?IP.ns:IP.ew;
   const tk=document.getElementById('iptk');
-  if(IP.done){ const res=resText(dt-NEED); tk.textContent=T("Done · declarer {0} ({1}), needed {2}",trk(dt),res,NEED)+scoreLine(dt); }
-  else tk.textContent=T("{0} to play · declarer {1}, needs {2}",NM[IP.turn],dt,NEED)+` · NS ${IP.ns}–EW ${IP.ew}`;
+  const done=document.getElementById('ipres'); done.classList.toggle('down',dt<NEED);
+  done.textContent=IP.done?T("Done · declarer {0} ({1}), needed {2}",trk(dt),resText(dt-NEED),NEED)+scoreLine(dt):"";
+  tk.textContent=IP.done?"":T("{0} to play · declarer {1}, needs {2}",NM[IP.turn],dt,NEED)+` · NS ${IP.ns}–EW ${IP.ew}`;
   const noneAhead=!IP.redo.length&&(!API||IP.done);
   ['ipu','ipstart'].forEach(id=>{ const b=document.getElementById(id); if(b) b.disabled=IP.hist.length===0; });
   ['ipf','iptrick'].forEach(id=>{ const b=document.getElementById(id); if(b) b.disabled=noneAhead; }); ipSyncSolve();
@@ -934,7 +994,7 @@ function ipHistoryHTML(){                                   // compact scrollabl
   return out.length?`<span class="thlab">${T("played")}</span>`+out.join(""):""; }
 // double-dummy from the current position (via the caching API): the optimal declarer total from
 // here, and — when you play an off-best card — how many tricks it just threw. Silent without the API.
-let ipEvalTok=0, ddsAuto=false, ddsOnce=false;              // ddsAuto persists across restart; ddsOnce is per-hand
+let ipEvalTok=0, ddsAuto=false, ddsOnce=false, keyCard=false;   // ddsAuto persists across restart; ddsOnce lasts to the end of the trick
 // trainer: you play some seats, the double-dummy plays the rest (auto), optionally hiding its hands
 let youPlay=BLIND?'decl':'all', hideDD=false, autoTimer=null;
 const PARTNER={n:'s',s:'n',e:'w',w:'e'};
@@ -948,16 +1008,18 @@ function humanSeats(){ const d=(q.get('dl')||'').toLowerCase();
 function isAuto(seat){ const h=humanSeats(); return PLAYMODE!=="task" && !!h && !h.has(seat); }         // played by the DD
 function isHidden(seat){ if(PLAYMODE==="task") return veiled()&&seat!==IP.turn&&seat!==dummySeat()&&!(IP.turn===dummySeat()&&seat===DECL);
   return (BLIND?!(IP&&IP.review):hideDD&&youPlay==='decl') && isAuto(seat) && seat!==dummySeat(); }    // dummy always shown; a defender sees three hands, the fourth is what is left
-function ipClearDDV(){ document.querySelectorAll('.card .ddv').forEach(s=>s.remove()); }
+function ipClearDDV(){ document.querySelectorAll('.ddv').forEach(s=>s.remove()); }
 function ipRenderDDV(){                                       // annotate the on-turn hand's legal cards
   ipClearDDV();
   if(!(ddsAuto||ddsOnce)||!IP||!IP.eval||IP.done||isHidden(IP.turn)||veiled()) return;
   document.querySelectorAll(`.seat.${IP.turn} .card.legal`).forEach(el=>{
-    const v=IP.eval.cards[el.getAttribute('data-c').slice(1)]; if(v==null) return;
+    const k=el.getAttribute('data-c').slice(1), v=IP.eval.cards[k]; if(v==null) return;
     const d=declTotal(v, IP.eval.side)-NEED;                  // contract result if this card is played
     const s=document.createElement('sup'); s.className='ddv '+(d<0?'set':'made');
-    s.textContent=d===0?'=':(d>0?'+'+d:''+d); el.appendChild(s); }); }
-function ipSyncDDSbtns(){ const a=document.getElementById('ddauto'); if(a) a.classList.toggle('on', ddsAuto);
+    s.textContent=d===0?'=':(d>0?'+'+d:''+d); el.appendChild(s);
+    const t=document.querySelector(`.trc[data-k="${k}"]`); if(t) t.appendChild(s.cloneNode(true)); }); }
+const press=(b,on)=>{ b.classList.toggle('on',on); b.setAttribute('aria-pressed',on); };
+function ipSyncDDSbtns(){ const a=document.getElementById('ddauto'); if(a) press(a,ddsAuto);
   const o=document.getElementById('ddonce'); if(o) o.disabled=ddsAuto; }
 function declTotal(sideTricks, side){                        // side's remaining DD tricks -> declarer total
   const declSide=(DECL==="n"||DECL==="s")?"ns":"ew", declWon=declSide==="ns"?IP.ns:IP.ew;
@@ -1004,7 +1066,7 @@ function wireInteractive(){
   document.getElementById('ipr').onclick=()=>{ ddsOnce=false; clearTimeout(autoTimer); ipInit(); ipPaint(); };
   const bo=document.getElementById('ddonce'), ba=document.getElementById('ddauto'), bl=document.getElementById('ipbest'),
         bc=document.getElementById('ipclaim');
-  if(!API){ [bo,ba,bl,bc].forEach(x=>{ if(x) x.style.display='none'; }); }          // DDS + solver need the eval API
+  if(!API){ [bo,ba,bl,bc,document.querySelector('.hintmsg')].forEach(x=>{ if(x) x.style.display='none'; }); }   // hints + solver need the eval API
   else { bo.onclick=()=>{ ddsOnce=true; ipRenderDDV(); };
     ba.onclick=()=>{ ddsAuto=!ddsAuto; ddsOnce=false; ipSyncDDSbtns(); ipRenderDDV(); };
     if(bl) bl.onclick=ipBestLine; if(bc) bc.onclick=ipClaim; }
@@ -1014,13 +1076,13 @@ function wireInteractive(){
     if(BLIND){ youPlay='decl'; ddsOnce=false; ipInit(); } ipSyncTrainer(); ipPaint(); };
   ipSyncTrainer(); ipSyncDDSbtns(); ipPaint(); }
 function ipSyncTrainer(){
-  document.querySelectorAll('.tr[data-you]').forEach(b=>b.classList.toggle('on', b.dataset.you===youPlay));
-  const th=document.getElementById('trhide'); if(th){ th.classList.toggle('on', hideDD); th.style.display=youPlay!=='decl'||BLIND?'none':''; }
-  const tb=document.getElementById('trblind'); if(tb) tb.classList.toggle('on', BLIND);
+  document.querySelectorAll('.tr[data-you]').forEach(b=>press(b,b.dataset.you===youPlay));
+  const th=document.getElementById('trhide'); if(th){ press(th,hideDD); th.style.display=youPlay!=='decl'||BLIND?'none':''; }
+  const tb=document.getElementById('trblind'); if(tb) press(tb,BLIND);
   const row=document.querySelector('.iptr'); if(row) row.style.display=API?'':'none'; }   // trainer needs the eval API
 function ipSyncSolve(){ const b=document.getElementById('ipbest'); if(!b) return;
   b.textContent=IP.solving?`⏹ ${T("stop")}`:`${T("best line")} ▶`; b.classList.toggle('on', IP.solving);
-  b.disabled=IP.done&&!IP.solving; }
+  b.disabled=IP.done&&!IP.solving; const c=document.getElementById('ipclaim'); if(c) c.disabled=IP.done; }
 // play out the DD-optimal line from the current position to the end (one API call for the whole
 // continuation, then animate it locally). Click again to stop; ◀/▶/restart/mode change also stop,
 // and ▶ then goes on along the same line card by card.
@@ -1064,14 +1126,16 @@ async function ipClaim(){
   if(IP.solving&&IP.seq.length===forLen){ for(const k of line){ if(IP.done) break; ipPlay(k, false); } }   // paint once, below
   IP.solving=false; if(PLAYMODE==="ip") ipPaint();
 }
-document.addEventListener('click',e=>{ const el=e.target.closest('.card.legal'); if(!el) return;
-  const key=el.getAttribute('data-c').slice(1);
+document.addEventListener('click',e=>{ const t=e.target.closest('.trc'), el=e.target.closest('.card.legal'); if(!t&&!el) return;
+  const key=t?t.dataset.k:el.getAttribute('data-c').slice(1);
   if(PLAYMODE==='quiz'){ if(!QUIZ) quizPick(key); } else if(PLAYMODE==='task') taskPick(key); else if(PLAYMODE==='ip'&&IP&&!IP.solving) ipPlay(key); });
-// keyboard: both tabs ← → step, ↓ trick, ↑/Home first card, End last · DD-line space auto · interactive
-// backspace and U too step back, R restart, B best line. Only while the play panel is up; clicks the same (visible, enabled) button.
+// keyboard: ← → step, ↓ trick, ↑/Home first card, End last · DD-line space auto · interactive backspace
+// and U too step back, R restart, B best line, C claim · Tab reaches the cards, Enter or space plays one.
+// Only while the play panel is up; clicks the same (visible, enabled) button.
 document.addEventListener('keydown',e=>{
   if(e.ctrlKey||e.metaKey||e.altKey) return;
   if(/^(input|textarea|select)$/i.test(e.target.tagName||'')) return;
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches&&e.target.matches('.card.legal[tabindex]')){ keyCard=true; e.target.click(); e.preventDefault(); return; }
   if(SET&&(e.key==='PageUp'||e.key==='PageDown')){ const b=document.getElementById(e.key==='PageUp'?'sprev':'snext');
     if(b&&!b.disabled) b.click(); e.preventDefault(); return; }
   const box=document.getElementById('playbox');
