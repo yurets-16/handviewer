@@ -145,12 +145,14 @@ class Pbn(unittest.TestCase):
             self.skipTest("needs endplay")
         cards = ["sk", "s2", "s5", "s3", "c5", "c3", "c6", "ck", "ha", "h5", "h2", "h9", "h3"]
         play = [{"card": c, "who": w} for c, w in zip(cards, "eswn" "eswn" "nesw" "n")]    # North wins the second
-        full = dict(hands=self.HANDS, dealer="e", vul="b", board="12", contract="4hx", decl="n", result="+1",
+        full = dict(event="BridgeTournament", site="results.neobridge.eu", date="2026.11.02",
+                    hands=self.HANDS, dealer="e", vul="b", board="12", contract="4hx", decl="n", result="+1",
                     auction=["1d", "p", "1h", "x", "2h", "p", "4h", "x", "p", "p", "p"], play=play,
                     players={"n": {"n": 'An"n'}, "w": {"n": "Ю\nВ"}})
         text = self.texts(full)[0]
         self.assertIn('[Deal "E:AK6.T5.8753.AQ95 Q942.Q8762.K9.83 JT875.K9.QT6.T76 3.AJ43.AJ42.KJ42"]', text)
         self.assertIn('[Result "11"]', text)
+        self.assertIn('[Event "BridgeTournament"]\n[Site "results.neobridge.eu"]\n[Date "2026.11.02"]\n', text)
         self.assertIn('[West "Ю В"]', text)                            # no new tag out of a name
         self.assertIn('[Play "E"]\nSK S2 S5 S3\nC5 C3 C6 CK\nH5 H2 H9 HA\n- - - H3\n*\n', text)   # a column to a seat
         b = pbn.loads(text)[0]
@@ -172,6 +174,7 @@ class Pbn(unittest.TestCase):
             dict(hands={**self.HANDS, "w": {"s": "", "h": "", "d": "", "c": ""}}, dealer="n", vul="e", board="<b>",
                  contract="9zz", decl="q", result="x", auction=["1h", "<i>", "p"]))
         self.assertIn('[Vulnerable "None"]', bare)
+        self.assertIn('[Site "?"]\n[Date "????.??.??"]\n', bare)
         self.assertIn('[Contract "?"]', bare)
         self.assertNotIn("[Auction", bare)
         self.assertIn('[Contract "Pass"]', out)                        # passed out is an answer, not unknown

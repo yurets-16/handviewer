@@ -351,14 +351,14 @@ function calcPar(dd, dealer, vul){
 // the auction and the play when there are any. Every value comes from the link: pbnStr keeps names
 // inside their tag, and the rest is checked against what the format allows.
 const pbnStr=v=>String(v==null?"":v).replace(/[\u0000-\u001f]+/g," ").replace(/[\\"]/g,"\\$&");
-function pbnText({hands,dealer,vul,board,contract,decl,result,auction,play,players}){
+function pbnText({event,site,date,hands,dealer,vul,board,contract,decl,result,auction,play,players}){
   const seats="nesw", from=s=>[...seats.slice(seats.indexOf(s)),...seats.slice(0,seats.indexOf(s))];
   const hand=h=>["s","h","d","c"].every(su=>!h[su])?"-":["s","h","d","c"].map(su=>
     [...h[su]].sort((a,b)=>"AKQJT98765432".indexOf(a)-"AKQJT98765432".indexOf(b)).join("")).join(".");
   const calls=(auction||[]).filter(c=>/^([1-7](nt|[shdc])|p|x|xx)$/i.test(c)).map(c=>c.toLowerCase());
   const passed=!contract&&calls.length>=4&&calls.every(c=>c==="p");
   const m=(contract||"").match(/^([1-7])(nt|[shdc])(x{0,2})$/i), r=(result||"").match(/^(=|[+-]\d+)$/);
-  const seat=(decl||"").toLowerCase(), tags=[["Event","?"],["Site","?"],["Date","????.??.??"],["Round","?"],
+  const seat=(decl||"").toLowerCase(), tags=[["Event",event||"?"],["Site",site||"?"],["Date",date||"????.??.??"],["Round","?"],
     ["Board",/^\d+$/.test(board||"")?board:"?"],
     ...["w","n","e","s"].map(s=>[{w:"West",n:"North",e:"East",s:"South"}[s],players&&players[s]?players[s].n:"?"]),
     ["Dealer",dealer.toUpperCase()],["Vulnerable",{n:"NS",e:"EW",b:"All"}[vul]||"None"],
@@ -543,8 +543,8 @@ function saveFile(blob,ext){ const a=document.createElement("a"), bd=/^\d+$/.tes
   setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
 // The deal as PBN. Only what happened goes in: a double-dummy line is no play, and a practice contract
 // has no auction, lead or result of its own.
-function savePBN(){ const dl=q.get("dl");
-  saveFile(new Blob([pbnText({hands:HANDS,dealer:DEALER,vul:VUL,board:q.get("b"),contract:q.get("c"),decl:dl,result:q.get("r"),
+function savePBN(){ const dl=q.get("dl"), d=new Date(), two=n=>String(n).padStart(2,"0");
+  saveFile(new Blob([pbnText({event:"BridgeTournament",site:location.hostname,date:`${d.getFullYear()}.${two(d.getMonth()+1)}.${two(d.getDate())}`,hands:HANDS,dealer:DEALER,vul:VUL,board:q.get("b"),contract:q.get("c"),decl:dl,result:q.get("r"),
     auction:TC?[]:(q.get("a")||"").split(/[-,]/),play:ACTUAL&&dl?SEQ:null,players:PL})],{type:"text/plain;charset=utf-8"}),"pbn"); }
 function savePNG(){ const img=new Image();
   img.onload=()=>{ const c=document.createElement("canvas"); c.width=img.width*2; c.height=img.height*2;

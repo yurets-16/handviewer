@@ -122,7 +122,7 @@ https://example.org/handviewer.html?b=1&d=n&v=-&n=s--hKQT96dAT94cAT86&…&a=ppp3
 
 The PBN button saves the deal as a file: the hands, dealer, vulnerability, contract, result, auction
 and players the link gives, `?` for what it does not, and the play only when `pa=1` marks it as the
-table's. With `tc=` it holds the practice contract, without the table's auction.
+table's. The event is `BridgeTournament`, the site is the page's host name, the date is today's. With `tc=` it holds the practice contract, without the table's auction.
 
 `handviewer.svg` is a small square button for such a link, a spade with a play sign cut out of it:
 
