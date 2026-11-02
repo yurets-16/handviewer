@@ -119,5 +119,68 @@ class Moments(unittest.TestCase):
         self.assertEqual(r["cell"], ["4h.n", "1nt.e", "7s.w"])     # what makes exactly, at least the one level
 
 
+PBN = r"""
+const fs=require('fs'), [html,cases]=process.argv.slice(1);
+const code=fs.readFileSync(html,'utf8').match(/const DD_RE[\s\S]*?\n(?=\/\/ ---- double-dummy play line)/)[0];
+const {pbnText}=new Function(code+';return {pbnText};')();
+console.log(JSON.stringify(JSON.parse(cases).map(pbnText)));
+"""
+
+
+@unittest.skipUnless(shutil.which("node"), "needs node")
+class Pbn(unittest.TestCase):
+    HANDS = {"n": {"s": "3", "h": "4JA3", "d": "AJ42", "c": "KJ42"}, "e": {"s": "AK6", "h": "T5", "d": "8753", "c": "AQ95"},
+             "s": {"s": "Q942", "h": "Q8762", "d": "K9", "c": "83"}, "w": {"s": "JT875", "h": "K9", "d": "QT6", "c": "T76"}}
+
+    def texts(self, *cases):
+        out = subprocess.run(["node", "-e", PBN, os.path.join(ROOT, "handviewer.html"), json.dumps(cases)],
+                             capture_output=True, text=True, encoding="utf-8", check=True).stdout
+        return json.loads(out)
+
+    def test_a_board_reads_back_in_endplay(self):
+        try:
+            from endplay.parsers import pbn
+            from endplay.types import Denom, Penalty, Player, Vul
+        except ImportError:
+            self.skipTest("needs endplay")
+        cards = ["sk", "s2", "s5", "s3", "c5", "c3", "c6", "ck", "ha", "h5", "h2", "h9", "h3"]
+        play = [{"card": c, "who": w} for c, w in zip(cards, "eswn" "eswn" "nesw" "n")]    # North wins the second
+        full = dict(hands=self.HANDS, dealer="e", vul="b", board="12", contract="4hx", decl="n", result="+1",
+                    auction=["1d", "p", "1h", "x", "2h", "p", "4h", "x", "p", "p", "p"], play=play,
+                    players={"n": {"n": 'An"n'}, "w": {"n": "Ю\nВ"}})
+        text = self.texts(full)[0]
+        self.assertIn('[Deal "E:AK6.T5.8753.AQ95 Q942.Q8762.K9.83 JT875.K9.QT6.T76 3.AJ43.AJ42.KJ42"]', text)
+        self.assertIn('[Result "11"]', text)
+        self.assertIn('[West "Ю В"]', text)                            # no new tag out of a name
+        self.assertIn('[Play "E"]\nSK S2 S5 S3\nC5 C3 C6 CK\nH5 H2 H9 HA\n- - - H3\n*\n', text)   # a column to a seat
+        b = pbn.loads(text)[0]
+        self.assertEqual(b.board_num, 12)
+        self.assertEqual(b.dealer, Player.east)
+        self.assertEqual(b.vul, Vul.both)
+        self.assertEqual(str(b.deal.north), "3.AJ43.AJ42.KJ42")
+        self.assertEqual(str(b.deal.west), "JT875.K9.QT6.T76")
+        self.assertEqual((b.contract.level, b.contract.denom, b.contract.declarer, b.contract.penalty, b.contract.result),
+                         (4, Denom.hearts, Player.north, Penalty.doubled, 1))
+        self.assertEqual(len(b.auction), 11)
+        suit = str.maketrans("♠♥♦♣", "shdc")
+        self.assertEqual([str(c).translate(suit).lower() for c in b.play], cards)    # played in the order it went
+
+    def test_what_the_link_does_not_say(self):
+        bare, out, junk = self.texts(
+            dict(hands=self.HANDS, dealer="n", vul="-"),
+            dict(hands=self.HANDS, dealer="s", vul="n", auction=["p", "p", "p", "p"]),
+            dict(hands={**self.HANDS, "w": {"s": "", "h": "", "d": "", "c": ""}}, dealer="n", vul="e", board="<b>",
+                 contract="9zz", decl="q", result="x", auction=["1h", "<i>", "p"]))
+        self.assertIn('[Vulnerable "None"]', bare)
+        self.assertIn('[Contract "?"]', bare)
+        self.assertNotIn("[Auction", bare)
+        self.assertIn('[Contract "Pass"]', out)                        # passed out is an answer, not unknown
+        self.assertIn('[Declarer ""]', out)
+        self.assertTrue(junk.split('[Deal "')[1].startswith("N:3.AJ43.AJ42.KJ42 AK6.T5.8753.AQ95 Q942.Q8762.K9.83 -"))
+        self.assertIn('[Board "?"]', junk)
+        self.assertIn('[Declarer "?"]', junk)
+        self.assertIn("1H Pass *", junk)                               # the junk call is gone, the auction is unfinished
+
+
 if __name__ == "__main__":
     unittest.main()

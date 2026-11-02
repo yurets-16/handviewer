@@ -173,7 +173,8 @@
   <button id="rotate" title="rotate the table — put the next seat at the bottom" style="margin-left:auto;display:none">&#8635;</button>
   <span id="tools" style="display:none"><button class="tbtn" id="print" title="print the deal">&#9113;</button>
     <button class="tbtn" id="svg" title="save the deal as a picture, SVG">SVG</button>
-    <button class="tbtn" id="png" title="save the deal as a picture, PNG">PNG</button></span>
+    <button class="tbtn" id="png" title="save the deal as a picture, PNG">PNG</button>
+    <button class="tbtn" id="pbn" title="save the deal as a PBN file">PBN</button></span>
   <a id="back" href="#" style="display:none">&larr; back</a></div>
 <div class="wrap"><div id="app"><div class="empty">No deal in the link.</div></div></div>
 <script>
@@ -190,7 +191,7 @@ const gaveUp=n=>T(`gave up ${trk(n)} vs. double-dummy`,`отдал ${trk(n)} п�
 if(RU){ document.documentElement.lang="ru"; document.title=document.querySelector(".top h1").textContent="Просмотр сдачи";
   document.getElementById("rotate").title="повернуть стол: следующая рука внизу";
   document.getElementById("print").title="напечатать сдачу";
-  document.getElementById("svg").title="сохранить сдачу картинкой, SVG"; document.getElementById("png").title="сохранить сдачу картинкой, PNG";
+  document.getElementById("svg").title="сохранить сдачу картинкой, SVG"; document.getElementById("png").title="сохранить сдачу картинкой, PNG"; document.getElementById("pbn").title="сохранить сдачу файлом PBN";
   document.getElementById("back").innerHTML="&larr; назад"; document.querySelector(".empty").textContent="В ссылке нет сдачи."; }
 // a= also comes run together, as in BBO's own handviewer links (ppp3NDppp, D and R for the doubles),
 // and such a link gives the contract nowhere else: put the calls in our form and read c= and dl=
@@ -346,6 +347,37 @@ function calcPar(dd, dealer, vul){
   const lvl=(bid/5|0)+1, st=PAR_STRAINS[bid%5], diff=tricks(decl,bid)-lvl-6;
   return `${lvl}${st==="n"?"nt":st}${seats[decl]}${diff<0?"x"+diff:diff?"+"+diff:"="} NS ${r.v>0?"+":""}${r.v}`; }
 
+// A deal as a PBN file, export form: the mandatory tags with ? for what the link does not say, then
+// the auction and the play when there are any. Every value comes from the link: pbnStr keeps names
+// inside their tag, and the rest is checked against what the format allows.
+const pbnStr=v=>String(v==null?"":v).replace(/[\u0000-\u001f]+/g," ").replace(/[\\"]/g,"\\$&");
+function pbnText({hands,dealer,vul,board,contract,decl,result,auction,play,players}){
+  const seats="nesw", from=s=>[...seats.slice(seats.indexOf(s)),...seats.slice(0,seats.indexOf(s))];
+  const hand=h=>["s","h","d","c"].every(su=>!h[su])?"-":["s","h","d","c"].map(su=>
+    [...h[su]].sort((a,b)=>"AKQJT98765432".indexOf(a)-"AKQJT98765432".indexOf(b)).join("")).join(".");
+  const calls=(auction||[]).filter(c=>/^([1-7](nt|[shdc])|p|x|xx)$/i.test(c)).map(c=>c.toLowerCase());
+  const passed=!contract&&calls.length>=4&&calls.every(c=>c==="p");
+  const m=(contract||"").match(/^([1-7])(nt|[shdc])(x{0,2})$/i), r=(result||"").match(/^(=|[+-]\d+)$/);
+  const seat=(decl||"").toLowerCase(), tags=[["Event","?"],["Site","?"],["Date","????.??.??"],["Round","?"],
+    ["Board",/^\d+$/.test(board||"")?board:"?"],
+    ...["w","n","e","s"].map(s=>[{w:"West",n:"North",e:"East",s:"South"}[s],players&&players[s]?players[s].n:"?"]),
+    ["Dealer",dealer.toUpperCase()],["Vulnerable",{n:"NS",e:"EW",b:"All"}[vul]||"None"],
+    ["Deal",`${dealer.toUpperCase()}:${from(dealer).map(s=>hand(hands[s])).join(" ")}`],["Scoring","?"],
+    ["Declarer",passed?"":seats.includes(seat)&&seat?seat.toUpperCase():"?"],
+    ["Contract",passed?"Pass":m?(m[1]+m[2]+m[3]).toUpperCase():"?"],
+    ["Result",passed?"":m&&r?String(+m[1]+6+(r[1]==="="?0:+r[1])):"?"]];
+  const out=["% PBN 2.1","% EXPORT",...tags.map(([k,v])=>`[${k} "${pbnStr(v)}"]`)];
+  if(calls.length){ const shown=calls.map(c=>c==="p"?"Pass":c.toUpperCase());
+    if(!(calls.length>=4&&calls.slice(-3).every(c=>c==="p"))) shown.push("*");
+    out.push(`[Auction "${dealer.toUpperCase()}"]`);
+    for(let i=0;i<shown.length;i+=4) out.push(shown.slice(i,i+4).join(" ")); }
+  if(play&&play.length){ const cols=from(play[0].who);      // a column to a seat, each trick from the opening leader's
+    out.push(`[Play "${play[0].who.toUpperCase()}"]`);
+    for(let i=0;i<play.length;i+=4){ const trick=play.slice(i,i+4);
+      out.push(cols.map(s=>{ const c=trick.find(x=>x.who===s); return c?c.card.toUpperCase():"-"; }).join(" ")); }
+    if(play.length<52) out.push("*"); }
+  return out.join("\n")+"\n\n"; }
+
 // ---- double-dummy play line (#4) ----
 // The line comes either baked into the link (p=...) or, lazily, from a small caching DD-line API
 // (computed once per board and cached), which also gives the makeable-tricks grid of a link without
@@ -458,6 +490,7 @@ function render(){
   document.getElementById("print").onclick=()=>window.print();
   document.getElementById("svg").onclick=()=>saveFile(new Blob([dealSVG()],{type:"image/svg+xml"}),"svg");
   document.getElementById("png").onclick=savePNG;
+  document.getElementById("pbn").onclick=savePBN;
   applyRotation();
   const led=leadEl(); if(led) led.classList.add("leadcard");
   // show the play panel whenever the deal is playable (interactive needs only a contract + declarer;
@@ -508,6 +541,11 @@ ${hand("n",205,28)}${hand("w",20,146)}${hand("e",375,146)}${hand("s",205,265)}</
 function saveFile(blob,ext){ const a=document.createElement("a"), bd=/^\d+$/.test(q.get("b")||"")?q.get("b"):"";
   a.href=URL.createObjectURL(blob); a.download=`${bd?"board-"+bd:"deal"}.${ext}`; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
+// The deal as PBN. Only what happened goes in: a double-dummy line is no play, and a practice contract
+// has no auction, lead or result of its own.
+function savePBN(){ const dl=q.get("dl");
+  saveFile(new Blob([pbnText({hands:HANDS,dealer:DEALER,vul:VUL,board:q.get("b"),contract:q.get("c"),decl:dl,result:q.get("r"),
+    auction:TC?[]:(q.get("a")||"").split(/[-,]/),play:ACTUAL&&dl?SEQ:null,players:PL})],{type:"text/plain;charset=utf-8"}),"pbn"); }
 function savePNG(){ const img=new Image();
   img.onload=()=>{ const c=document.createElement("canvas"); c.width=img.width*2; c.height=img.height*2;
     c.getContext("2d").drawImage(img,0,0,c.width,c.height); c.toBlob(b=>{ if(b) saveFile(b,"png"); }); };
