@@ -185,5 +185,43 @@ class Pbn(unittest.TestCase):
         self.assertIn("1H Pass *", junk)                               # the junk call is gone, the auction is unfinished
 
 
+LANGS = r"""
+const fs=require('fs'), path=require('path'), [root]=process.argv.slice(1);
+const html=fs.readFileSync(path.join(root,'handviewer.html'),'utf8'), window={};
+new Function('window',fs.readFileSync(path.join(root,'lang','ru.js'),'utf8'))(window);
+new Function('window',fs.readFileSync(path.join(root,'lang','en.js'),'utf8'))(window.en={});
+const keys=[...html.matchAll(/(?<![\w.$])T\("((?:[^"\\]|\\.)*)"/g)].map(m=>JSON.parse(`"${m[1]}"`));
+const titles=[...html.matchAll(/ title="([^"$]*)"/g)].map(m=>m[1]);
+const pack=window.HV_LANG;
+console.log(JSON.stringify({keys,titles,text:pack.text,en:window.en.HV_LANG,tricks:[1,2,5,11,12,21,22,25].map(pack.tricks)}));
+"""
+
+
+@unittest.skipUnless(shutil.which("node"), "needs node")
+class Languages(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        out = subprocess.run(["node", "-e", LANGS, ROOT], capture_output=True, text=True, encoding="utf-8", check=True).stdout
+        cls.r = json.loads(out)
+
+    def test_russian_has_every_phrase_and_no_stray_one(self):
+        used, text = set(self.r["keys"]) | set(self.r["titles"]), self.r["text"]
+        self.assertEqual(sorted(used - set(text)), [])
+        self.assertEqual(sorted(set(text) - used), [])
+
+    def test_values_go_through(self):
+        for k, v in self.r["text"].items():
+            self.assertEqual(sorted(re.findall(r"\{\d\}", k)), sorted(re.findall(r"\{\d\}", v)), k)
+
+    def test_word_for_tricks(self):
+        self.assertEqual(self.r["tricks"], ["1 взятку", "2 взятки", "5 взяток", "11 взяток", "12 взяток",
+                                            "21 взятку", "22 взятки", "25 взяток"])
+
+    def test_the_page_itself_is_english(self):
+        self.assertEqual(self.r["en"], {"lang": "en"})
+        with open(os.path.join(ROOT, "handviewer.html"), encoding="utf-8") as f:
+            self.assertIsNone(re.search("[А-Яа-яЁё]", f.read()))
+
+
 if __name__ == "__main__":
     unittest.main()

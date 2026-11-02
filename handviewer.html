@@ -177,22 +177,23 @@
     <button class="tbtn" id="pbn" title="save the deal as a PBN file">PBN</button></span>
   <a id="back" href="#" style="display:none">&larr; back</a></div>
 <div class="wrap"><div id="app"><div class="empty">No deal in the link.</div></div></div>
+<script src="handviewer.lang.js"></script>
 <script>
 const SUIT={s:{sym:"♠",c:"sp"},h:{sym:"♥",c:"he"},d:{sym:"♦",c:"di"},c:{sym:"♣",c:"cl"}};
 const ORDER="shdc";
 const RANKV={A:14,K:13,Q:12,J:11,T:10,"9":9,"8":8,"7":7,"6":6,"5":5,"4":4,"3":3,"2":2};
 const NEXT={n:"e",e:"s",s:"w",w:"n"};
 const q=new URLSearchParams(location.search);
-// Russian on lang=ru or in a Russian browser, English otherwise: seat letters and NT stay as they are
-const RU=/^ru/i.test(q.get("lang")||navigator.language||""), T=(en,ru)=>RU?ru:en;
-const NM=RU?{n:"Север",e:"Восток",s:"Юг",w:"Запад"}:{n:"North",e:"East",s:"South",w:"West"};
-function trk(n){ return RU?`${n} взят${n%10===1&&n!==11?"ку":n%10>=2&&n%10<=4&&(n<12||n>14)?"ки":"ок"}`:`${n} trick${n===1?"":"s"}`; }
-const gaveUp=n=>T(`gave up ${trk(n)} vs. double-dummy`,`отдал ${trk(n)} по double-dummy`);
-if(RU){ document.documentElement.lang="ru"; document.title=document.querySelector(".top h1").textContent="Просмотр сдачи";
-  document.getElementById("rotate").title="повернуть стол: следующая рука внизу";
-  document.getElementById("print").title="напечатать сдачу";
-  document.getElementById("svg").title="сохранить сдачу картинкой, SVG"; document.getElementById("png").title="сохранить сдачу картинкой, PNG"; document.getElementById("pbn").title="сохранить сдачу файлом PBN";
-  document.getElementById("back").innerHTML="&larr; назад"; document.querySelector(".empty").textContent="В ссылке нет сдачи."; }
+// The page speaks English. A language pack, this site's handviewer.lang.js loaded just above, gives the
+// rest: the text by its English, with {0} and on for the values put in; what stands after | only tells
+// apart what English writes alike. A phrase the pack lacks stays English; seat letters and NT never change.
+const LANG=window.HV_LANG||{}, T=(en,...a)=>(LANG.text&&LANG.text[en]||en.split("|")[0]).replace(/\{(\d)\}/g,(m,i)=>a[i]);
+const NM={n:T("North"),e:T("East"),s:T("South"),w:T("West")};
+function trk(n){ return LANG.tricks?LANG.tricks(n):`${n} trick${n===1?"":"s"}`; }
+const gaveUp=n=>T("gave up {0} vs. double-dummy",trk(n));
+document.documentElement.lang=LANG.lang||"en"; document.title=document.querySelector(".top h1").textContent=T("Hand viewer");
+document.querySelectorAll("[title]").forEach(e=>{ e.title=T(e.title); });
+document.getElementById("back").innerHTML=`&larr; ${T("back")}`; document.querySelector(".empty").textContent=T("No deal in the link.");
 // a= also comes run together, as in BBO's own handviewer links (ppp3NDppp, D and R for the doubles),
 // and such a link gives the contract nowhere else: put the calls in our form and read c= and dl=
 // out of them, so everything below sees an ordinary link. 3N and 3S x in c= are the same shorthand.
@@ -259,7 +260,7 @@ function auctionHTML(a, dealer){
   let rows=""; for(let i=0;i<cells.length;i+=4) rows+="<tr>"+cells.slice(i,i+4).join("")+"</tr>";
   return `<table class="auc">${head}${rows}</table>`; }
 function fmtCall(c){ const u=c.toUpperCase();
-  if(u==="P"||u==="PASS") return `<span class="call pass">${T("Pass","Пас")}</span>`;
+  if(u==="P"||u==="PASS") return `<span class="call pass">${T("Pass")}</span>`;
   if(u==="X") return '<span class="call dbl">X</span>';
   if(u==="XX") return '<span class="call dbl">XX</span>';
   const m=c.match(/^(\d)(NT|[shdc])$/i);
@@ -268,14 +269,14 @@ function fmtCall(c){ const u=c.toUpperCase();
 let DEALER="n", VUL="-", PAR_NS=null;
 function ddBox(dd){ const own=calcPar(dd,DEALER,VUL), par=q.get("par")||own, m=own.match(/NS ([+-]?\d+)$/);
   PAR_NS=own==="Passed out"?0:m?+m[1]:null;
-  const shown=par==="Passed out"?T(par,"Все пас"):fmtPar(par);
-  return `<div class="box ddbox"><h2>${T("Double-dummy — makeable tricks","Double-dummy — сколько взяток")}</h2>${ddHTML(dd)}${par?`<div class="par">${T("Par","Пар")}: <b>${shown}</b></div>`:""}</div>`; }
+  const shown=par==="Passed out"?T("Passed out"):fmtPar(par);
+  return `<div class="box ddbox"><h2>${T("Double-dummy — makeable tricks")}</h2>${ddHTML(dd)}${par?`<div class="par">${T("Par")}: <b>${shown}</b></div>`:""}</div>`; }
 function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","s","e","w"];
   const IDX={n:0,e:1,s:2,w:3};   // dd is packed seat-major N,E,S,W — map each display row to its block
   let g=`<table class="dd"><tr><th></th>${strains.map(s=>`<th>${s==="NT"?"NT":suitSym(s)}</th>`).join("")}</tr>`;
   seats.forEach(se=>{ g+=`<tr><th>${se.toUpperCase()}</th>`;
     strains.forEach((st,ti)=>{ const t=parseInt(dd[IDX[se]*5+ti],36);
-      g+=`<td class="${t>=7?'make':'lo'}"${TC_OK&&!isNaN(t)?` data-tc="${tcCell(t,st,se)}" title="${T("try this contract","попробовать этот контракт")}"`:""}>${isNaN(t)?"":t}</td>`; });
+      g+=`<td class="${t>=7?'make':'lo'}"${TC_OK&&!isNaN(t)?` data-tc="${tcCell(t,st,se)}" title="${T("try this contract")}"`:""}>${isNaN(t)?"":t}</td>`; });
     g+="</tr>"; });
   return g+"</table>"; }
 
@@ -431,7 +432,7 @@ function renderTableCards(trick, winSeat){
   box.querySelectorAll(".tc").forEach(el=>{ const p=el.dataset.pos;
     el.innerHTML=slots[p]||""; el.classList.toggle("win", p===wp && !!slots[p]); }); }
 
-function vulText(v){ return {"-":T("None","нет"),n:"N-S",e:"E-W",b:T("All","все")}[v]||T("None","нет"); }
+function vulText(v){ return {"-":T("None"),n:"N-S",e:"E-W",b:T("All")}[v]||T("None"); }
 function render(){
   const app=document.getElementById("app");
   if(!["n","e","s","w"].some(s=>q.get(s))) return;
@@ -452,10 +453,10 @@ function render(){
   for(const s of ["n","w","e","s"]){ const dl=s===dealer, ld=s===leader;
     comp+=`<div class="seat ${s} ${dl?'deal':''} ${ld?'onlead':''}">
       <div class="lbl"><b class="${isVul(s)?'vred':''}">${NM[s]}</b>
-        <span>${dl?T('Dealer','Сдающий'):''}${ld?`<span class="leadmark"> ◆ ${T('on lead','атака')}</span>`:''}</span></div>
+        <span>${dl?T("Dealer"):''}${ld?`<span class="leadmark"> ◆ ${T("on lead")}</span>`:''}</span></div>
       ${PL&&PL[s]?`<div class="who"><b>${esc(PL[s].n)}</b>${PL[s].t?`<span>${esc(PL[s].t)}</span>`:""}</div>`:""}
       <div class="hand">${handHTML(hands[s], s)}</div></div>`; }
-  comp+=`<div class="mid"><div class="dlr">${T("Dlr","Сд.")} ${dealer.toUpperCase()} · ${T("Vul","Зона")} ${vt}</div>
+  comp+=`<div class="mid"><div class="dlr">${T("Dlr")} ${dealer.toUpperCase()} · ${T("Vul")} ${vt}</div>
     <div class="tablecards">
       <span class="tc" data-pos="top"></span>
       <span class="tc" data-pos="left"></span>
@@ -465,20 +466,20 @@ function render(){
     </div></div></div>`;
 
   let panels=`<div class="panels">`;
-  const auc=q.get("a"); if(auc) panels+=`<div class="box"><h2>${TC?T("Auction at the table","Торговля за столом"):T("Auction","Торговля")}</h2>${auctionHTML(auc,dealer)}</div>`;
+  const auc=q.get("a"); if(auc) panels+=`<div class="box"><h2>${TC?T("Auction at the table"):T("Auction")}</h2>${auctionHTML(auc,dealer)}</div>`;
   DEALER=dealer; VUL=vul;
   if(q.get("dd")) panels+=ddBox(q.get("dd"));
   panels+=`</div>`;
 
   SEQ=buildSeq(cardList((q.get("p")||"").split(/[ ,]+/)));
   const playbox=`<div class="box" id="playbox" style="margin-top:9px;display:none">
-    <h2>${T("Play","Розыгрыш")}</h2><div class="pl-body"></div></div>`;
+    <h2>${T("Play")}</h2><div class="pl-body"></div></div>`;
 
   app.innerHTML=comp+panels+tcBar()+playbox+
-    `<div class="note">${T("Four-colour suits","Четырёхцветные масти")} · ${ACTUAL?T("the line shown is the table’s actual card play","показан реальный розыгрыш за столом"):T("the line shown is double-dummy optimal, not the table’s actual play","показана линия double-dummy, а не розыгрыш за столом")}<br>${T("Keys — both tabs: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>Home</b>/<b>End</b> start and end · line: <b>space</b> auto · play: <b>R</b> restart, <b>B</b> best line, <b>C</b> claim","Клавиши — обе вкладки: <b>←</b>/<b>→</b> шаг, <b>↓</b> взятка, <b>Home</b>/<b>End</b> начало и конец · линия: <b>пробел</b> авто · игра: <b>R</b> сначала, <b>B</b> лучшая линия, <b>C</b> клейм")}</div>`;
+    `<div class="note">${T("Four-colour suits")} · ${ACTUAL?T("the line shown is the table’s actual card play"):T("the line shown is double-dummy optimal, not the table’s actual play")}<br>${T("Keys — both tabs: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>Home</b>/<b>End</b> start and end · line: <b>space</b> auto · play: <b>R</b> restart, <b>B</b> best line, <b>C</b> claim")}</div>`;
   const bd=/^\d+$/.test(q.get("b")||"")?q.get("b"):"";                 // digits only: it reaches innerHTML
-  if(bd) document.title=`${T("Board","Сдача")} ${bd} · ${T("Hand viewer","Просмотр сдачи")}`;
-  document.getElementById("sub").innerHTML=(bd?`${T("Board","Сдача")} ${bd}${contract?" · ":""}`:"")+(contract?fmtContract(contract):"")+(result?` <span class="rslt">${esc(result)}</span>`:"")+(decl?` ${T("by","играет")} ${esc(decl.toUpperCase())}`:"")+(TC?` · ${T("practice contract","учебный контракт")}`:"");
+  if(bd) document.title=`${T("Board")} ${bd} · ${T("Hand viewer")}`;
+  document.getElementById("sub").innerHTML=(bd?`${T("Board")} ${bd}${contract?" · ":""}`:"")+(contract?fmtContract(contract):"")+(result?` <span class="rslt">${esc(result)}</span>`:"")+(decl?` ${T("by")} ${esc(decl.toUpperCase())}`:"")+(TC?` · ${T("practice contract")}`:"");
   wireTC();
   const back=document.getElementById("back"), b=q.get("back");
   // only http/https (resolved against this page) — blocks javascript:/data: back links
@@ -503,14 +504,14 @@ function tcBar(){ if(!TC_OK) return "";
   const m=(q.get("c")||"").match(/^(\d)(nt|[shdc])(x{0,2})/i)||[], st=(m[2]||"nt").toLowerCase(), x=(m[3]||"").toLowerCase();
   const sel=(id,opts,cur)=>`<select id="${id}">${opts.map(([v,l])=>`<option value="${v}"${v===cur?" selected":""}>${l}</option>`).join("")}</select>`;
   const was=TC&&TC.c?`${fmtContract(TC.c)}${NM[TC.dl]?` ${TC.dl.toUpperCase()}`:""}`:"";
-  return `<div class="tcbar">`+(TC?`<span>${T("Practice contract","Учебный контракт")}${was?` · ${T("at the table","за столом")} ${was}`:""}</span>
-      <button class="tcb" id="tcback">${TC.c?T("Back to the table’s contract","Вернуть контракт стола"):T("Clear the contract","Убрать контракт")}</button>`:"")+
-    `<button class="tcb" id="tcopen">${T("Another contract","Другой контракт")}</button><span class="tcform" id="tcform" hidden>`+
+  return `<div class="tcbar">`+(TC?`<span>${T("Practice contract")}${was?` · ${T("at the table")} ${was}`:""}</span>
+      <button class="tcb" id="tcback">${TC.c?T("Back to the table’s contract"):T("Clear the contract")}</button>`:"")+
+    `<button class="tcb" id="tcopen">${T("Another contract")}</button><span class="tcform" id="tcform" hidden>`+
     sel("tclv",[..."1234567"].map(n=>[n,n]),m[1]||"3")+
     sel("tcst",[["c",SUIT.c.sym],["d",SUIT.d.sym],["h",SUIT.h.sym],["s",SUIT.s.sym],["nt","NT"]],st)+
     sel("tcx",[["","—"],["x","X"],["xx","XX"]],x)+
     sel("tcdl",["n","e","s","w"].map(s=>[s,NM[s]]),DECL)+
-    `<button class="tcb on" id="tcplay">${T("Play it","Играть")}</button></span></div>`; }
+    `<button class="tcb on" id="tcplay">${T("Play it")}</button></span></div>`; }
 function wireTC(){ const f=document.getElementById("tcform"); if(!f) return;
   const [lv,st,x,dl]=["tclv","tcst","tcx","tcdl"].map(id=>document.getElementById(id)), back=document.getElementById("tcback");
   // the play and the tabs of the page go with the reload: a new contract starts with the hand itself,
@@ -532,7 +533,7 @@ function dealSVG(){ const col={s:"#111",h:"#c8102e",d:"#d9730d",c:"#0a7a3c"}, bd
   const m=(q.get("c")||"").match(/^(\d)(nt|[shdc])(x{0,2})/i), r=(q.get("r")||"").match(/^(=|[+-]\d+)$/);
   const st=m&&m[2].toLowerCase(), ct=m?`${m[1]}${st==="nt"?"NT":`<tspan fill="${col[st]}">${SUIT[st].sym}</tspan>`}${m[3].toUpperCase()}`
     +(NEXT[DECL]&&q.get("dl")?` ${DECL.toUpperCase()}`:"")+(r?` ${r[1]}`:""):"";
-  const mid=[bd?`${T("Board","Сдача")} ${bd}`:"",`${T("Dlr","Сд.")} ${DEALER.toUpperCase()} · ${T("Vul","Зона")} ${vulText(VUL)}`];
+  const mid=[bd?`${T("Board")} ${bd}`:"",`${T("Dlr")} ${DEALER.toUpperCase()} · ${T("Vul")} ${vulText(VUL)}`];
   return `<svg xmlns="http://www.w3.org/2000/svg" width="540" height="390" viewBox="0 0 540 390" font-family="Arial,Helvetica,sans-serif" font-size="15" fill="#111">
 <rect width="540" height="390" fill="#fff"/><rect x="195" y="150" width="150" height="90" rx="8" fill="#f3f5f8" stroke="#c5ccd6"/>
 <g text-anchor="middle" font-size="12" fill="#555">${mid.map((t,i)=>`<text x="270" y="${172+i*17}">${esc(t)}</text>`).join("")}</g>
@@ -558,14 +559,14 @@ function setMark(ok){ if(!SET) return; try{ const s=setScore();
     if(!(SETI in s)){ s[SETI]=ok?1:0; localStorage.setItem(setKey(),JSON.stringify(s)); } }catch(e){}
   setBar(); }
 function setGo(i,redirect){ const p=new URLSearchParams(SET.deals[i]);
-  ["set","lang","api","back"].forEach(k=>{ if(q.has(k)) p.set(k,q.get(k)); });
+  ["set","api","back"].forEach(k=>{ if(q.has(k)) p.set(k,q.get(k)); });
   if(!MODES.some(k=>p.has(k))){ const m=SET.mode||MODES.find(k=>q.has(k)); if(m) p.set(m,"1"); }   // a deal's own mode wins
   p.set("i",i); location[redirect?"replace":"assign"](location.pathname+"?"+p); }
 function setBar(){ const n=SET.deals.length, s=Object.values(setScore()), good=s.filter(Boolean).length;
   document.getElementById("setbar").innerHTML=(SET.title?`<span>${esc(SET.title)}</span>`:"")+
-    `<button class="tbtn" id="sprev" title="${T("previous deal (PgUp)","предыдущая сдача (PgUp)")}"${SETI?"":" disabled"}>‹</button><span>${SETI+1}/${n}</span>
-    <button class="tbtn" id="snext" title="${T("next deal (PgDn)","следующая сдача (PgDn)")}"${SETI<n-1?"":" disabled"}>›</button>`+
-    (s.length?`<b>✓ ${good}/${s.length}</b><button class="tbtn" id="sreset" title="${T("clear the score","сбросить счёт")}">↺</button>`:"");
+    `<button class="tbtn" id="sprev" title="${T("previous deal (PgUp)")}"${SETI?"":" disabled"}>‹</button><span>${SETI+1}/${n}</span>
+    <button class="tbtn" id="snext" title="${T("next deal (PgDn)")}"${SETI<n-1?"":" disabled"}>›</button>`+
+    (s.length?`<b>✓ ${good}/${s.length}</b><button class="tbtn" id="sreset" title="${T("clear the score")}">↺</button>`:"");
   document.getElementById("sprev").onclick=()=>setGo(SETI-1); document.getElementById("snext").onclick=()=>setGo(SETI+1);
   const r=document.getElementById("sreset"); if(r) r.onclick=()=>{ try{ localStorage.removeItem(setKey()); }catch(e){} setBar(); }; }
 async function setLoad(){ try{ const u=new URL(q.get("set"),location.href); if(u.origin!==location.origin) return;
@@ -575,18 +576,18 @@ async function setLoad(){ try{ const u=new URL(q.get("set"),location.href); if(u
   }catch(e){ return; }
   SETI=Math.min(SETI,SET.deals.length-1);
   if(["n","e","s","w"].some(s=>q.get(s))) setBar(); else setGo(SETI,true); }
-const setNextBtn=()=>SET&&SETI<SET.deals.length-1?`<button id="setnext">${T("Next deal","Следующая сдача")} ▶</button>`:"";
+const setNextBtn=()=>SET&&SETI<SET.deals.length-1?`<button id="setnext">${T("Next deal")} ▶</button>`:"";
 function wireSetNext(){ const b=document.getElementById("setnext"); if(b) b.onclick=()=>setGo(SETI+1); }
-const LINK_BTN=`<button id="plink" title="${T("copy a link to this position","скопировать ссылку на эту позицию")}">⧉</button>`;
-const PLAY_CONTROLS=`<div class="play"><button id="pf" title="${T("restart","в начало")}">⏮</button><button id="pp">◀</button>
-    <button id="pn">▶</button><button id="pt">${T("trick","взятка")} ▶▶</button>
-    <button id="pa">▶ ${T("auto","авто")}</button>${LINK_BTN}<span class="tk" id="ptk"></span></div>
+const LINK_BTN=`<button id="plink" title="${T("copy a link to this position")}">⧉</button>`;
+const PLAY_CONTROLS=`<div class="play"><button id="pf" title="${T("restart")}">⏮</button><button id="pp">◀</button>
+    <button id="pn">▶</button><button id="pt">${T("trick")} ▶▶</button>
+    <button id="pa">▶ ${T("auto")}</button>${LINK_BTN}<span class="tk" id="ptk"></span></div>
   <div class="trick" id="ptv"></div><div class="ipfb" id="pfb"></div>`;
 // a link to this very position: at= the cards played yourself, pos= the step of the line
 function copyLink(btn,name,val){ const u=new URL(location.href);
   ["at","pos","quiz","blind","task"].forEach(k=>u.searchParams.delete(k)); if(val) u.searchParams.set(name,val);
   (navigator.clipboard?navigator.clipboard.writeText(u.href):Promise.reject()).then(()=>{
-    btn.textContent="✓"; setTimeout(()=>{ btn.textContent="⧉"; },1200); }).catch(()=>prompt(T("Link to this position","Ссылка на эту позицию"),u.href)); }
+    btn.textContent="✓"; setTimeout(()=>{ btn.textContent="⧉"; },1200); }).catch(()=>prompt(T("Link to this position"),u.href)); }
 function showPlay(){ document.getElementById("playbox").style.display=""; renderPlay(); }
 function renderPlay(){
   const body=document.getElementById("playbox").querySelector(".pl-body");
@@ -594,13 +595,13 @@ function renderPlay(){
   clearBoard(); renderTableCards([],null);
   document.body.classList.remove("quiz","blind","task"); document.querySelectorAll(".seat").forEach(s=>s.classList.remove("facedown"));
   const tbl=document.querySelector(".table"); if(tbl) tbl.classList.toggle("ipmode", ipTab());
-  const tabs=`<div class="pmode">`+[["dd",ACTUAL?T("Card play at the table","Розыгрыш за столом"):T("Double-dummy line","Линия double-dummy")],["ip",T("Play it yourself","Сыграть самому")],["quiz",T("Guess the lead","Угадай атаку")],["task",T("Find the card","Найди карту")]].filter(([m])=>m==="dd"||CAN_IP&&(m==="ip"||API||PLAYMODE===m)).map(([m,l])=>
+  const tabs=`<div class="pmode">`+[["dd",ACTUAL?T("Card play at the table"):T("Double-dummy line")],["ip",T("Play it yourself")],["quiz",T("Guess the lead")],["task",T("Find the card")]].filter(([m])=>m==="dd"||CAN_IP&&(m==="ip"||API||PLAYMODE===m)).map(([m,l])=>
       `<button class="pm${PLAYMODE===m?" on":""}" data-mode="${m}">${l}</button>`).join("")+`</div>`;
   if(PLAYMODE==="ip"){ body.innerHTML=tabs+IP_CONTROLS; wireInteractive(); }
   else if(PLAYMODE==="quiz") renderQuiz(body,tabs);
   else if(PLAYMODE==="task") renderTask(body,tabs);
   else if(SEQ){ body.innerHTML=tabs+PLAY_CONTROLS; wirePlay(); }
-  else { body.innerHTML=tabs+`<div class="pl-load">${T("Computing the double-dummy line…","Считаю линию double-dummy…")}</div>`; loadLine(); }
+  else { body.innerHTML=tabs+`<div class="pl-load">${T("Computing the double-dummy line…")}</div>`; loadLine(); }
   body.querySelectorAll(".pm").forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
 }
 // the task plays its position on IP: the hand you were playing waits for you
@@ -645,27 +646,27 @@ async function leadsBox(){ if(!API||!q.get("c")||!q.get("dl")) return;
   const rows=Object.keys(by).map(Number).sort((a,b)=>a-b).map(t=>`<div class="ldrow"><b>${t} (${resText(t-NEED)})</b>${
     by[t].map(k=>`<span class="ld${k===l?" l":""}">${cardHTML(k)}</span>`).join("")}</div>`).join("");
   document.querySelector(".panels").insertAdjacentHTML("beforeend",
-    `<div class="box leadsbox"><h2>${T("Opening leads — what declarer makes","Атаки — сколько берёт разыгрывающий")}</h2>${rows}</div>`); }
+    `<div class="box leadsbox"><h2>${T("Opening leads — what declarer makes")}</h2>${rows}</div>`); }
 // What the link's lead l= cost against double-dummy, on show from the start.
 function leadCost(){ const lead=(q.get("l")||"").toLowerCase(), box=document.getElementById("playbox");
   if(!LEADS||!box||!CARD_RE.test(lead)||LEADS.cards[lead]==null) return;
   const cost=LEADS.best-LEADS.cards[lead], led=leadEl(); if(cost&&led) led.classList.add("cost");
   box.querySelector("h2").insertAdjacentHTML("afterend",cost
-    ?`<div class="ipfb" id="leadline">▲ ${T("Lead","Атака")} ${cardHTML(lead)} ${T(`gave up ${trk(cost)} vs. double-dummy`,`отдала ${trk(cost)} по double-dummy`)}</div>`
-    :`<div class="ipdd" id="leadline">${T("Lead","Атака")} ${cardHTML(lead)} ${T("is double-dummy best","лучшая по double-dummy")}</div>`); }
+    ?`<div class="ipfb" id="leadline">▲ ${T("Lead")} ${cardHTML(lead)} ${T("gave up {0} vs. double-dummy|card",trk(cost))}</div>`
+    :`<div class="ipdd" id="leadline">${T("Lead")} ${cardHTML(lead)} ${T("is double-dummy best")}</div>`); }
 // "Guess the lead": only the hand on lead and the auction show until a card is picked
 let QUIZ=null, quizBusy=false;
 function renderQuiz(body,tabs){
   if(QUIZ){ const c=QUIZ.cost, card=cardHTML(QUIZ.key), l=(q.get("l")||"").toLowerCase();
-    const said=c==null?T("Double-dummy is not available here.","Double-dummy здесь недоступен."):c
-      ?`▲ ${card} ${T(`gives up ${trk(c)} vs. double-dummy`,`отдаёт ${trk(c)} по double-dummy`)}`
-      :`${card} ${T("is double-dummy best","лучшая атака по double-dummy")}`;
-    const table=(CARD_RE.test(l)?`<div class="ipdd">${T("At the table","За столом")}: ${cardHTML(l)}</div>`:"")+fieldLeads();
-    body.innerHTML=tabs+`<div class="${c?"ipfb":"ipdd"}">${said}</div>${table}<div class="play"><button id="qplay">${T("Play on from this lead","Играть с этой атаки")} ▶</button>${setNextBtn()}</div>`;
+    const said=c==null?T("Double-dummy is not available here."):c
+      ?`▲ ${card} ${T("gives up {0} vs. double-dummy",trk(c))}`
+      :`${card} ${T("is double-dummy best|lead")}`;
+    const table=(CARD_RE.test(l)?`<div class="ipdd">${T("At the table")}: ${cardHTML(l)}</div>`:"")+fieldLeads();
+    body.innerHTML=tabs+`<div class="${c?"ipfb":"ipdd"}">${said}</div>${table}<div class="play"><button id="qplay">${T("Play on from this lead")} ▶</button>${setNextBtn()}</div>`;
     document.getElementById("qplay").onclick=()=>{ q.set("at",QUIZ.key); IP=null; PLAYMODE="ip"; renderPlay(); };
     wireSetNext();
     return; }
-  body.innerHTML=tabs+`<div class="ipmsg">${T(`You are ${NM[LEADER0]}, on lead: click the card you would lead.`,`Вы ${NM[LEADER0]}, ваша атака: нажмите карту, которой пойдёте.`)}</div>`;
+  body.innerHTML=tabs+`<div class="ipmsg">${T("You are {0}, on lead: click the card you would lead.",NM[LEADER0])}</div>`;
   document.body.classList.add("quiz");
   document.querySelectorAll(".seat").forEach(s=>s.classList.toggle("facedown",!s.classList.contains(LEADER0)));
   document.querySelectorAll(`.seat.${LEADER0} .card`).forEach(c=>c.classList.add("legal"));
@@ -679,7 +680,7 @@ async function quizPick(key){ if(quizBusy) return; quizBusy=true; await apiReady
 function fieldLeads(){ const ol=(q.get("ol")||"").split(",").map(s=>s.match(/^([shdc][2-9tjqka])(\d+)$/i)).filter(Boolean);
   if(!ol.length) return "";
   const ev=QUIZ.ev, n=ol.reduce((a,m)=>a+ +m[2],0);
-  return `<div class="ipdd">${T(`The field, ${n} tables in this strain with this declarer:`,`За столами с той же мастью и тем же разыгрывающим (${n}):`)}</div><div class="ldrow">`+ol.map(m=>{
+  return `<div class="ipdd">${T("The field, {0} tables in this strain with this declarer:",n)}</div><div class="ldrow">`+ol.map(m=>{
     const c=m[1].toLowerCase(), cost=ev&&ev.cards[c]!=null?ev.best-ev.cards[c]:0;
     return `<span class="ld${c===QUIZ.key?" l":""}">${cardHTML(c)} ×${m[2]}${cost?`<sup>−${cost}</sup>`:""}</span>`; }).join("")+`</div>`; }
 // "Find the card": the line stops at its key moments, where only one card keeps the result. You see
@@ -693,16 +694,16 @@ function taskNone(body,text){ document.body.classList.remove("blind");          
 function renderTask(body,tabs){ document.body.classList.add("blind","task");
   if(!TASK){ document.querySelectorAll(".seat").forEach(s=>s.classList.add("facedown"));
     body.innerHTML=tabs+`<div class="pl-load" id="taskload"></div>`; taskFind(); }
-  else if(!TASK.moms.length){ body.innerHTML=tabs; taskNone(body,T("This line has no moment with a single right card.","В этой линии нет момента с единственной верной картой.")); }
+  else if(!TASK.moms.length){ body.innerHTML=tabs; taskNone(body,T("This line has no moment with a single right card.")); }
   else { body.innerHTML=tabs+IP_CONTROLS+`<div id="taskbox"></div>`; taskGo(TASK.at); } }
 async function taskFind(){ if(taskBusy) return; taskBusy=true;
   const say=t=>{ const el=document.getElementById("taskload"); if(el) el.textContent=t; }, none=()=>{ taskBusy=false;
-    if(PLAYMODE==="task") taskNone(document.querySelector("#playbox .pl-body"),T("Double-dummy is not available here.","Double-dummy здесь недоступен.")); };
-  say(`${T("Looking for the key moments","Ищу ключевые моменты")}…`); await apiReady;
+    if(PLAYMODE==="task") taskNone(document.querySelector("#playbox .pl-body"),T("Double-dummy is not available here.")); };
+  say(`${T("Looking for the key moments")}…`); await apiReady;
   if(!API||!q.get("c")||!q.get("dl")) return none();
   if(!SEQ) try{ SEQ=buildSeq(cardList((await (await fetch(apiURL())).json()).p)); }catch(e){}
   if(!SEQ) return none();
-  const keys=SEQ.map(x=>x.card.toLowerCase()), evs=await lineEvals(keys,(a,n)=>say(`${T("Looking for the key moments","Ищу ключевые моменты")}… ${a}/${n}`));
+  const keys=SEQ.map(x=>x.card.toLowerCase()), evs=await lineEvals(keys,(a,n)=>say(`${T("Looking for the key moments")}… ${a}/${n}`));
   if(!evs.some(Boolean)){ LINE_EVS=null; return none(); }                    // the tab tries again next time
   TASK={keys,evs,moms:keyMoments(evs,keys,ACTUAL),at:0,tries:0,solved:false,clean:0,msg:""}; taskBusy=false;
   if(PLAYMODE==="task") renderPlay(); }
@@ -711,14 +712,14 @@ function taskGo(n){ TASK.at=n; ipInit(); TASK.keys.slice(0,TASK.moms[n].i).forEa
 function taskPaint(){ const box=document.getElementById("taskbox"); if(!box) return;
   const m=TASK.moms[TASK.at], ev=TASK.evs[m.i], N=TASK.moms.length, last=TASK.at===N-1, res=declTotal(ev.best,ev.side),
     ours=ev.side===(DECL==="n"||DECL==="s"?"ns":"ew"), played=TASK.keys[m.i], tricks=`${res} (${resText(res-NEED)})`;
-  const goal=ours?T(`Find the card that gives declarer ${tricks}.`,`Найдите карту, с которой разыгрывающий возьмёт ${tricks}.`)
-    :T(`Find the card that holds declarer to ${tricks}.`,`Найдите карту, с которой разыгрывающий возьмёт не больше ${tricks}.`);
+  const goal=ours?T("Find the card that gives declarer {0}.",tricks)
+    :T("Find the card that holds declarer to {0}.",tricks);
   let html=`<div class="ipdd"><b>${TASK.at+1}/${N}</b> · ${NM[IP.turn]} · ${goal}</div>`;
-  if(TASK.solved) html+=`<div class="ipdd">✓ ${m.best.length>3?T(`right cards: ${m.best.length}`,`верных карт: ${m.best.length}`):m.best.map(cardHTML).join(T(" or "," или "))}${m.err?"":` · ${T("any other card gives up at least","другая карта отдаёт минимум")} ${trk(m.gap)}`}</div>`+
-    (m.err?`<div class="ipfb">${T("At the table","За столом")}: ${cardHTML(played)} ${T(`gave up ${trk(m.gap)}`,`отдала ${trk(m.gap)}`)}</div>`:"");
+  if(TASK.solved) html+=`<div class="ipdd">✓ ${m.best.length>3?T("right cards: {0}",m.best.length):m.best.map(cardHTML).join(T(" or "))}${m.err?"":` · ${T("any other card gives up at least")} ${trk(m.gap)}`}</div>`+
+    (m.err?`<div class="ipfb">${T("At the table")}: ${cardHTML(played)} ${T("gave up {0}",trk(m.gap))}</div>`:"");
   else if(TASK.msg) html+=`<div class="ipfb">${TASK.msg}</div>`;
-  if(TASK.solved&&last) html+=`<div class="ipdd">${T(`Found at the first try: ${TASK.clean} of ${N}`,`С первой попытки: ${TASK.clean} из ${N}`)}</div>`;
-  html+=`<div class="play taskbtns">${TASK.solved?(last?setNextBtn():`<button id="tnext">${T("Next moment","Следующий момент")} ▶</button>`):`<button id="tshow">${T("Show the answer","Показать ответ")}</button>`}</div>`;
+  if(TASK.solved&&last) html+=`<div class="ipdd">${T("Found at the first try: {0} of {1}",TASK.clean,N)}</div>`;
+  html+=`<div class="play taskbtns">${TASK.solved?(last?setNextBtn():`<button id="tnext">${T("Next moment")} ▶</button>`):`<button id="tshow">${T("Show the answer")}</button>`}</div>`;
   box.innerHTML=html; wireSetNext();
   const s=document.getElementById("tshow"); if(s) s.onclick=()=>{ TASK.tries++; taskSolved(); };
   const t=document.getElementById("tnext"); if(t) t.onclick=()=>{ TASK.solved=false; TASK.tries=0; TASK.msg=""; taskGo(TASK.at+1); }; }
@@ -726,7 +727,7 @@ function taskSolved(){ TASK.solved=true; ddsOnce=true; ipPaint(); taskPaint();
   if(TASK.at===TASK.moms.length-1) setMark(TASK.clean===TASK.moms.length); }
 function taskPick(key){ if(!TASK||TASK.solved) return; const ev=TASK.evs[TASK.moms[TASK.at].i], v=ev.cards[key]; if(v==null) return;
   if(v===ev.best){ if(!TASK.tries) TASK.clean++; taskSolved(); return; }
-  TASK.tries++; TASK.msg=`▲ ${cardHTML(key)} ${T(`gives up ${trk(ev.best-v)}, try again`,`отдаёт ${trk(ev.best-v)}, попробуйте ещё раз`)}`; taskPaint(); }
+  TASK.tries++; TASK.msg=`▲ ${cardHTML(key)} ${T("gives up {0}, try again",trk(ev.best-v))}`; taskPaint(); }
 // The table's play against double-dummy: what each card gave away. All 48 cards before the last
 // trick are one request each, a few at a time; the answers are cached by server and browser alike.
 let AUDIT=null, jumpPlay=null;
@@ -739,13 +740,13 @@ async function evalCards(keys,say){ const evs=[], n=Math.min(keys.length,48); le
 // the line of the deal is walked once, whoever asks: the audit and the task want the same answers
 let LINE_EVS=null; const lineSay=[];
 function lineEvals(keys,say){ lineSay.push(say); return LINE_EVS=LINE_EVS||evalCards(keys,(a,n)=>lineSay.forEach(f=>f(a,n))); }
-async function auditCards(keys,say,get=evalCards){ const costs=[], evs=await get(keys,(a,n)=>say(`${T("Checking the play","Проверяю розыгрыш")}… ${a}/${n}`));
+async function auditCards(keys,say,get=evalCards){ const costs=[], evs=await get(keys,(a,n)=>say(`${T("Checking the play")}… ${a}/${n}`));
   evs.forEach((ev,i)=>{ const v=ev&&ev.cards[keys[i]]; if(v!=null) costs[i]=ev.best-v; }); return costs; }
 function auditHTML(costs,keys,who,mine){ const got=Object.keys(costs).length; if(!got) return "";
   const errs=keys.map((k,i)=>i).filter(i=>costs[i]>0&&mine(i));
-  return (errs.length?`<b>${T("Where tricks went","Где ушли взятки")}:</b> `+errs.map(i=>
-      `<button data-at="${i+1}" title="${T("go to this card","к этой карте")}">${Math.floor(i/4)+1}: ${who[i].toUpperCase()} ${cardHTML(keys[i])} −${costs[i]}</button>`).join(" ")
-    :T("No card gave a trick away.","Ни одна карта не отдала взятку."))+(got<Math.min(keys.length,48)?` ${T("(not every card checked)","(проверены не все карты)")}`:""); }
+  return (errs.length?`<b>${T("Where tricks went")}:</b> `+errs.map(i=>
+      `<button data-at="${i+1}" title="${T("go to this card")}">${Math.floor(i/4)+1}: ${who[i].toUpperCase()} ${cardHTML(keys[i])} −${costs[i]}</button>`).join(" ")
+    :T("No card gave a trick away."))+(got<Math.min(keys.length,48)?` ${T("(not every card checked)")}`:""); }
 async function auditPlay(){ const box=document.getElementById("playbox");
   if(AUDIT||!ACTUAL||!SEQ||!box||!API||!q.get("c")||!q.get("dl")) return;
   box.querySelector("h2").insertAdjacentHTML("afterend",`<div id="audit"></div>`);
@@ -770,9 +771,9 @@ function scoreOf(tricks){ const m=(q.get("c")||"").match(/^(\d)(nt|[shdc])(x{0,2
   const ns=DECL==="n"||DECL==="s", s=bridgeScore(+m[1],m[2][0].toLowerCase(),m[3].length,tricks,VUL==="b"||VUL===(ns?"n":"e"));
   return ns?s:-s; }
 function scoreLine(tricks){ const s=scoreOf(tricks); if(s==null) return "";
-  let out=` · NS ${signed(s)}`; if(PAR_NS!=null) out+=` · ${T("par","пар")} ${signed(PAR_NS)} (${signed(s-PAR_NS)})`;
+  let out=` · NS ${signed(s)}`; if(PAR_NS!=null) out+=` · ${T("par")} ${signed(PAR_NS)} (${signed(s-PAR_NS)})`;
   const r=(q.get("r")||"").match(/^(=|[+-]\d+)$/);
-  if(r&&PLAYMODE==="ip") out+=` · ${T("at the table","за столом")} NS ${signed(scoreOf(NEED+(r[1]==="="?0:+r[1])))}`;
+  if(r&&PLAYMODE==="ip") out+=` · ${T("at the table")} NS ${signed(scoreOf(NEED+(r[1]==="="?0:+r[1])))}`;
   return out; }
 
 // Lazily fetch the DD line for the "Double-dummy line" tab when it wasn't baked into the link. The
@@ -781,14 +782,14 @@ function scoreLine(tricks){ const s=scoreOf(tricks); if(s==null) return "";
 async function loadLine(){
   const c=q.get("c"), dl=q.get("dl");
   const note=t=>{ const el=document.querySelector("#playbox .pl-body .pl-load"); if(el) el.textContent=t; };
-  const none=T("Double-dummy line unavailable for this deal.","Линия double-dummy для этой сдачи недоступна.");
+  const none=T("Double-dummy line unavailable for this deal.");
   if(!API||!c||!dl){ note(none); return; }
   try{
     const r=await fetch(apiURL()); const j=await r.json();
     const cards=cardList(j&&j.p);
     if(cards.length){ SEQ=buildSeq(cards); if(PLAYMODE==="dd") renderPlay(); }
     else note(none);
-  }catch(e){ note(T("Couldn’t load the double-dummy line.","Не удалось загрузить линию double-dummy.")); }
+  }catch(e){ note(T("Couldn’t load the double-dummy line.")); }
 }
 
 function wirePlay(){
@@ -806,12 +807,12 @@ function wirePlay(){
     for(let i=0; i+4<=POS; i+=4){ const w=winner(SEQ.slice(i,i+4),TRUMP);
       if(w==="n"||w==="s") ns++; else ew++; }
     const dside=(DECL==="n"||DECL==="s")?"ns":"ew", dt=dside==="ns"?ns:ew;
-    const done=POS>=SEQ.length&&SEQ.length%4===0, d=dt-NEED, dw=T("declarer","разыгрывающий");
+    const done=POS>=SEQ.length&&SEQ.length%4===0, d=dt-NEED, dw=T("declarer");
     document.getElementById('ptk').textContent=
-      `${T("card","карта")} ${POS}/${SEQ.length} \u00b7 ${T("trick","взятка")} ${Math.max(1,Math.ceil(POS/4))}/${Math.ceil(SEQ.length/4)}`
+      `${T("card")} ${POS}/${SEQ.length} \u00b7 ${T("trick")} ${Math.max(1,Math.ceil(POS/4))}/${Math.ceil(SEQ.length/4)}`
       + ` \u00b7 N-S ${ns} \u2013 E-W ${ew}`
       + (done ? ` \u00b7 ${dw} ${dt} (${resText(d)})`+(SEQ.length===52?scoreLine(dt):"")
-              : ` \u00b7 ${dw} ${dt}, ${T("needs","нужно")} ${NEED}`);
+              : ` \u00b7 ${dw} ${dt}, ${T("needs")} ${NEED}`);
     const lost=AUDIT&&POS?AUDIT[POS-1]:0;
     document.getElementById('pfb').textContent=lost>0?`▲ ${NM[SEQ[POS-1].who]} ${gaveUp(lost)}`:"";
     document.getElementById('pp').disabled=POS===0; document.getElementById('pf').disabled=POS===0;
@@ -823,9 +824,9 @@ function wirePlay(){
   document.getElementById('pf').onclick=()=>{POS=0;paint();};
   document.getElementById('pt').onclick=()=>step(Math.min(SEQ.length,(Math.floor(POS/4)+1)*4)-POS);
   document.getElementById('pa').onclick=function(){
-    const label=`▶ ${T("auto","авто")}`;
+    const label=`▶ ${T("auto")}`;
     if(AUTO){stopAuto();this.textContent=label;return;}
-    this.textContent=`⏸ ${T("pause","пауза")}`;
+    this.textContent=`⏸ ${T("pause")}`;
     AUTO=setInterval(()=>{ if(POS>=SEQ.length){stopAuto();document.getElementById('pa').textContent=label;return;} step(1); },750);
   };
   document.getElementById('plink').onclick=function(){ copyLink(this,"pos",POS?""+POS:""); };
@@ -834,21 +835,21 @@ function wirePlay(){
 }
 
 // ---- interactive play (#5): you choose every card for the hand on turn ----
-const IP_CONTROLS=`<div class="iptr"><span class="trl">${T("You play","Вы играете")}</span>
-    <button class="tr" data-you="all" title="${T("play all four hands yourself","играть за все четыре руки")}">${T("all four","все четыре")}</button>
-    <button class="tr" data-you="decl" title="${T("you play declarer + dummy; the double-dummy defends","вы за разыгрывающего и болвана, защищается double-dummy")}">${T("declarer","разыгрывающий")}</button>
-    <button class="tr" data-you="def" title="${T("you play both defenders; the double-dummy declares","вы за обоих защитников, разыгрывает double-dummy")}">${T("defence","защита")}</button>
-    <button class="tr" id="trhide" title="${T("hide the hands the double-dummy plays (dummy stays shown)","скрыть руки, которыми играет double-dummy (болван остаётся)")}">${T("hide DD hands","скрыть руки DD")}</button>
-    <button class="tr" id="trblind" title="${T("play declarer from your two hands; no hints until the last card","разыгрывать, видя только свои две руки; без подсказок до последней карты")}">${T("blind","вслепую")}</button></div>
-  <div class="play"><button id="ipstart" title="${T("back to the first card, keeping the line ahead","к первой карте, линия впереди сохраняется")}">⏮</button>
-    <button id="ipu" title="${T("one card back","на карту назад")}">◀</button>
-    <button id="ipf" title="${T("one card forward, along the line ahead or the double-dummy-optimal one","на карту вперёд: по линии впереди или по линии double-dummy")}">▶</button>
-    <button id="iptrick" title="${T("to the end of this trick","до конца взятки")}">${T("trick","взятка")} ▶▶</button>
-    <button id="ipr">⟲ ${T("restart","сначала")}</button>
-    <button id="ipbest" title="${T("play out the double-dummy-optimal line from here to the end","доиграть отсюда до конца по линии double-dummy")}">${T("best line","лучшая линия")} ▶</button>
-    <button id="ipclaim" title="${T("claim — finish the hand double-dummy instantly and show the result","клейм: сразу доиграть по double-dummy и показать итог")}">${T("claim","клейм")} ✓</button>
-    <button id="ddonce" title="${T("show the double-dummy result of every card in the hand on turn, once","один раз показать результат double-dummy для каждой карты руки на ходу")}">${T("show DDS","показать DDS")}</button>
-    <button id="ddauto" title="${T("keep the DDS of the hand on turn shown every trick, until turned off","показывать DDS руки на ходу на каждой взятке, пока не выключите")}">${T("auto DDS","авто DDS")}</button>
+const IP_CONTROLS=`<div class="iptr"><span class="trl">${T("You play")}</span>
+    <button class="tr" data-you="all" title="${T("play all four hands yourself")}">${T("all four")}</button>
+    <button class="tr" data-you="decl" title="${T("you play declarer + dummy; the double-dummy defends")}">${T("declarer")}</button>
+    <button class="tr" data-you="def" title="${T("you play both defenders; the double-dummy declares")}">${T("defence")}</button>
+    <button class="tr" id="trhide" title="${T("hide the hands the double-dummy plays (dummy stays shown)")}">${T("hide DD hands")}</button>
+    <button class="tr" id="trblind" title="${T("play declarer from your two hands; no hints until the last card")}">${T("blind")}</button></div>
+  <div class="play"><button id="ipstart" title="${T("back to the first card, keeping the line ahead")}">⏮</button>
+    <button id="ipu" title="${T("one card back")}">◀</button>
+    <button id="ipf" title="${T("one card forward, along the line ahead or the double-dummy-optimal one")}">▶</button>
+    <button id="iptrick" title="${T("to the end of this trick")}">${T("trick")} ▶▶</button>
+    <button id="ipr">⟲ ${T("restart|again")}</button>
+    <button id="ipbest" title="${T("play out the double-dummy-optimal line from here to the end")}">${T("best line")} ▶</button>
+    <button id="ipclaim" title="${T("claim — finish the hand double-dummy instantly and show the result")}">${T("claim")} ✓</button>
+    <button id="ddonce" title="${T("show the double-dummy result of every card in the hand on turn, once")}">${T("show DDS")}</button>
+    <button id="ddauto" title="${T("keep the DDS of the hand on turn shown every trick, until turned off")}">${T("auto DDS")}</button>
     ${LINK_BTN}
     <span class="tk" id="iptk"></span></div>
   <div class="trick" id="iptv"></div>
@@ -856,8 +857,8 @@ const IP_CONTROLS=`<div class="iptr"><span class="trl">${T("You play","Вы иг
   <div class="ipdd" id="ipdd"></div>
   <div class="ipfb" id="ipfb"></div>
   <div id="ipaudit"></div>
-  <div class="ipmsg blindonly">${T("Blind: you see your two hands only. The defenders play double-dummy, so they see all four hands and never slip. The review opens after the last card.","Вслепую: вы видите только свои две руки. Защита играет по double-dummy, то есть видит все четыре руки и не ошибается. Разбор откроется после последней карты.")}</div>
-  <div class="ipmsg">${T("Click a card in the highlighted hand — follow-suit is enforced and the lead passes to the trick winner. The mark on a card is the double-dummy contract result if you play it (=/+1/-1) — green makes, red goes down.","Нажмите карту в выделенной руке: вьювер следит за мастью, а ход переходит к взявшему взятку. Метка на карте — результат контракта по double-dummy, если сыграть её (=/+1/-1): зелёная — контракт выполнен, красная — не выполнен.")}</div>`;
+  <div class="ipmsg blindonly">${T("Blind: you see your two hands only. The defenders play double-dummy, so they see all four hands and never slip. The review opens after the last card.")}</div>
+  <div class="ipmsg">${T("Click a card in the highlighted hand — follow-suit is enforced and the lead passes to the trick winner. The mark on a card is the double-dummy contract result if you play it (=/+1/-1) — green makes, red goes down.")}</div>`;
 function clearBoard(){ document.querySelectorAll('.card').forEach(c=>c.classList.remove('played','now','legal'));
   document.querySelectorAll('.seat').forEach(s=>s.classList.remove('toplay'));
   document.querySelectorAll('.card .ddv').forEach(s=>s.remove()); }
@@ -910,8 +911,8 @@ function ipPaint(){ if(!ipTab()) return; clearBoard(); clearTimeout(autoTimer);
   renderTableCards(IP.trick, IP.trick.length===4?winner(IP.trick,TRUMP):null);
   const declSide=(DECL==="n"||DECL==="s")?"ns":"ew", dt=declSide==="ns"?IP.ns:IP.ew;
   const tk=document.getElementById('iptk');
-  if(IP.done){ const res=resText(dt-NEED); tk.textContent=T(`Done · declarer ${trk(dt)} (${res}), needed ${NEED}`,`Готово · разыгрывающий взял ${trk(dt)} (${res}), нужно ${NEED}`)+scoreLine(dt); }
-  else tk.textContent=T(`${NM[IP.turn]} to play · declarer ${dt}, needs ${NEED}`,`Ходит ${NM[IP.turn]} · разыгрывающий ${dt}, нужно ${NEED}`)+` · NS ${IP.ns}–EW ${IP.ew}`;
+  if(IP.done){ const res=resText(dt-NEED); tk.textContent=T("Done · declarer {0} ({1}), needed {2}",trk(dt),res,NEED)+scoreLine(dt); }
+  else tk.textContent=T("{0} to play · declarer {1}, needs {2}",NM[IP.turn],dt,NEED)+` · NS ${IP.ns}–EW ${IP.ew}`;
   const noneAhead=!IP.redo.length&&(!API||IP.done);
   ['ipu','ipstart'].forEach(id=>{ const b=document.getElementById(id); if(b) b.disabled=IP.hist.length===0; });
   ['ipf','iptrick'].forEach(id=>{ const b=document.getElementById(id); if(b) b.disabled=noneAhead; }); ipSyncSolve();
@@ -927,10 +928,10 @@ function ipHistoryHTML(){                                   // compact scrollabl
   let cur=LEADER0, trick=[], out=[], n=0;
   for(const card of IP.seq){ trick.push({who:cur,card});
     if(trick.length===4){ const w=winner(trick,TRUMP); n++;
-      out.push(`<span class="tht" title="${T(`trick ${n} — won by ${NM[w]}`,`взятка ${n}, взял ${NM[w]}`)}"><span class="thn">${n}</span>`+
+      out.push(`<span class="tht" title="${T("trick {0} — won by {1}",n,NM[w])}"><span class="thn">${n}</span>`+
         trick.map(c=>`<span class="thc${c.who===w?' w':''}">${c.who.toUpperCase()[0]}${cardHTML(c.card)}</span>`).join("")+`</span>`);
       cur=w; trick=[]; } else cur=NEXT[cur]; }
-  return out.length?`<span class="thlab">${T("played","сыграно")}</span>`+out.join(""):""; }
+  return out.length?`<span class="thlab">${T("played")}</span>`+out.join(""):""; }
 // double-dummy from the current position (via the caching API): the optimal declarer total from
 // here, and — when you play an off-best card — how many tricks it just threw. Silent without the API.
 let ipEvalTok=0, ddsAuto=false, ddsOnce=false;              // ddsAuto persists across restart; ddsOnce is per-hand
@@ -964,13 +965,13 @@ function declTotal(sideTricks, side){                        // side's remaining
   return declWon+(side===declSide?sideTricks:(remaining-sideTricks)); }
 function ipShowEval(){ const dd=document.getElementById('ipdd'); if(!dd||IP.curOpt==null) return;
   const df=IP.curOpt-NEED;
-  dd.innerHTML=`${T("Double-dummy from here: declarer makes","Double-dummy отсюда: разыгрывающий берёт")} <b>${IP.curOpt}</b> (${resText(df)})`; }
+  dd.innerHTML=`${T("Double-dummy from here: declarer makes")} <b>${IP.curOpt}</b> (${resText(df)})`; }
 async function ipFetchEval(){
   const dd=document.getElementById('ipdd');
   const tok=++ipEvalTok; if(!dd||IP.solving) return;       // during a best-line play-out, don't churn evals
   if(!API||IP.done){ dd.innerHTML=""; return; }
   const forLen=IP.seq.length;
-  if(IP.curOpt==null) dd.innerHTML=`<span class="ipdim">${T("computing double-dummy…","считаю double-dummy…")}</span>`;
+  if(IP.curOpt==null) dd.innerHTML=`<span class="ipdim">${T("computing double-dummy…")}</span>`;
   try{
     const r=await fetch(apiURL({played:IP.seq.join(",")})); const j=await r.json();
     if(tok!==ipEvalTok||!ipTab()) return;                   // a newer position (or tab) superseded this fetch
@@ -1018,7 +1019,7 @@ function ipSyncTrainer(){
   const tb=document.getElementById('trblind'); if(tb) tb.classList.toggle('on', BLIND);
   const row=document.querySelector('.iptr'); if(row) row.style.display=API?'':'none'; }   // trainer needs the eval API
 function ipSyncSolve(){ const b=document.getElementById('ipbest'); if(!b) return;
-  b.textContent=IP.solving?`⏹ ${T('stop','стоп')}`:`${T('best line','лучшая линия')} ▶`; b.classList.toggle('on', IP.solving);
+  b.textContent=IP.solving?`⏹ ${T("stop")}`:`${T("best line")} ▶`; b.classList.toggle('on', IP.solving);
   b.disabled=IP.done&&!IP.solving; }
 // play out the DD-optimal line from the current position to the end (one API call for the whole
 // continuation, then animate it locally). Click again to stop; ◀/▶/restart/mode change also stop,

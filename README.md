@@ -70,7 +70,6 @@ Letters are case-insensitive. Only the hands are required.
 | `tc`   | a contract to practise, `contract.declarer`: it replaces `c` and `dl` on the page and drops the table's lead, play and result; `c` and `dl` stay in the link, and the page goes back to them. Needs all four hands, and a set ignores it | `3nt.s`, `5dx.e` |
 | `ol`   | the field's opening leads, card and count, most led first; "Guess the lead" shows them after the answer | `sk12,d34` |
 | `blind` | `1` = open as declarer playing blind: your two hands only, no hints, a review after the last card | `1` |
-| `lang` | `ru` or `en`; left out, the browser's language decides | `ru` |
 | `api`  | URL of the double-dummy API (see below); left out, the page tries `/api/ddline` on its own site; empty, the API stays off | `https://example.org/dd` |
 | `back` | URL for a "← back" link (http/https only) | `https://example.org/round/3` |
 
@@ -96,6 +95,17 @@ position. On a line played at a table (`pa=1`), every card that gave a trick awa
 and these come first. After them come the moments where the best cards are a single card or touching
 ones and the hand holds something worse. Up to five are kept, the dearest first, and shown in play
 order. You see what the player on turn sees, that hand and dummy, until the card is found.
+
+## Languages
+
+The page is written in English and works alone in that language. To change it, put a language pack
+next to the page as `handviewer.lang.js`: `lang/ru.js` for Russian, `lang/en.js` for English. The
+site decides, a link or a browser does not.
+
+A pack is the page's English and what shows instead of it, `{0}` and on for the values put in, and
+`tricks` for the word "trick" with its number. What stands after `|` in a key is left out of the
+English: it tells apart phrases that English writes alike and another language does not. A phrase the
+pack lacks stays English, so a new language can start small.
 
 ## Sets of deals
 
