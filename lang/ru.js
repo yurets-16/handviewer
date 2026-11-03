@@ -85,6 +85,7 @@ text:{
   "on lead":"атака",
   "one card back":"на карту назад",
   "one card forward":"на карту вперёд",
+  "one trick forward":"на взятку вперёд",
   "one card forward, along the line ahead or the double-dummy-optimal one":"на карту вперёд: по линии впереди или по линии ДД",
   "Open it on BBO":"Открыть на BBO",
   "Opening leads — what declarer makes":"Атаки — сколько берёт разыгрывающий",

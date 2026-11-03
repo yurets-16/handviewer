@@ -256,21 +256,27 @@ document.getElementById("back").innerHTML=`&larr; ${T("back")}`; document.queryS
 // comes run together too (SAS2S3…), tbt=y steps the line a trick at a time, k= changes nothing here.
 // Such a line is the play at the table, as pa=1 says.
 const SEATS4=["n","e","s","w"], hasDeal=()=>SEATS4.some(s=>q.get(s));
-function linParams(lin){ const out={}, calls=[], cards=[], tok=String(lin||"").split("|");
+// A vugraph file has no ah|: its qx|o33| (c33 for the closed room) gives the board, and its pn| names
+// eight players, the open room's S, W, N, E and then the closed room's.
+function linParams(lin){ const out={}, calls=[], cards=[], tok=String(lin||"").split("|"); let names=[], qx=null;
   for(let i=0;i+1<tok.length;i+=2){ const k=tok[i].trim().toLowerCase(), v=tok[i+1].trim();
     if((k==="qx"||k==="md")&&out.n) break;                                   // the next board
-    if(k==="md"){ const order=["s","w","n","e"], hs=v.slice(1).split(",");
-      out.d=({1:"s",2:"w",3:"n",4:"e"})[v[0]]||"n";
+    if(k==="qx") qx=v.match(/^([oc]?)(\d*)/i);
+    if(k==="md"){ const order=["s","w","n","e"], dg=/^[1-4]/.test(v), hs=(dg?v.slice(1):v).split(",");
+      if(dg) out.d=({1:"s",2:"w",3:"n",4:"e"})[v[0]];
       order.forEach((st,j)=>{ out[st]=(hs[j]||"").replace(/[^SHDCAKQJT2-9]/gi,""); });
       const miss=order.filter(st=>!out[st]);                                 // LIN may leave the 4th out
       if(miss.length===1) out[miss[0]]=ORDER.split("").map(su=>su+"AKQJT98765432".split("").filter(r=>
         !order.some(st=>st!==miss[0]&&parseHand(out[st])[su].includes(r))).join("")).join(""); }
     else if(k==="sv") out.v=({o:"-",0:"-",n:"n",e:"e",b:"b"})[v.toLowerCase()]||"-";
     else if(k==="ah"){ const b=v.match(/\d+/); if(b) out.b=b[0]; }
-    else if(k==="pn") v.split(",").slice(0,4).forEach((nm,j)=>{ if(nm.trim()) out[["s","w","n","e"][j]+"n"]=nm.trim(); });
+    else if(k==="pn") names=v.split(",");
     else if(k==="mb") calls.push(v.replace(/!/g,""));
     else if(k==="pc"&&/^[shdc](?:10|[2-9tjqka])$/i.test(v)) cards.push(v.replace(/10$/,"t").toLowerCase());
     else if(k==="mc"&&/^\d{1,2}$/.test(v)) out.c=v; }
+  if(!out.b&&qx&&qx[2]) out.b=qx[2];
+  names.slice(qx&&qx[1].toLowerCase()==="c"&&names.length>=8?4:0).slice(0,4).forEach((nm,j)=>{
+    if(nm.trim()) out[["s","w","n","e"][j]+"n"]=nm.trim(); });
   if(calls.length) out.a=calls.join("-");
   if(cards.length) out.p=cards.join(",");
   return out; }
@@ -279,8 +285,8 @@ let BBO=false, CLAIM=null;
   if(q.get("lin")&&!hasDeal()){ for(const [k,v] of Object.entries(linParams(q.get("lin")))) if(!q.has(k)) q.set(k,v); BBO=true; }
   const c=(q.get("c")||"").trim();
   if(/^\d{1,2}$/.test(c)){ q.delete("c"); BBO=true; if(+c<=13) CLAIM=+c; }
-  const pl=(q.get("p")||"").replace(/\s+/g,"");
-  if(pl&&/^([shdc](?:10|[2-9tjqka]))+$/i.test(pl)&&!/,/.test(q.get("p"))){
+  const pl=q.get("p")||"";                                                     // ours are split by , or space
+  if(/^([shdc](?:10|[2-9tjqka]))+$/i.test(pl)&&pl.length>2){
     q.set("p",pl.match(/[shdc](?:10|[2-9tjqka])/gi).map(x=>x.replace(/10$/,"t")).join(",")); BBO=true; }
   if(/^[^-,\s]{2,}$/.test(q.get("a")||"")) BBO=true;                        // ppp3NDppp, calls run together
 })();
@@ -701,7 +707,7 @@ const setNextBtn=()=>SET&&SETI<SET.deals.length-1?`<button id="setnext">${T("Nex
 function wireSetNext(){ const b=document.getElementById("setnext"); if(b) b.onclick=()=>setGo(SETI+1); }
 const LINK_BTN=`<button id="plink" ${tip(T("copy a link to this position"))}>⧉</button>`;
 const PLAY_CONTROLS=`<div class="play"><button id="pf" ${tip(T("restart"))}>⏮</button><button id="pp" ${tip(T("one card back"))}>◀</button>
-    <button id="pn" ${tip(T("one card forward"))}>▶</button><button id="pt">${T("trick")} ▶▶</button>
+    <button id="pn" ${tip(TBT?T("one trick forward"):T("one card forward"))}>▶</button><button id="pt">${T("trick")} ▶▶</button>
     <button id="pa">▶ ${T("auto")}</button>${LINK_BTN}<span class="tk" id="ptk"></span></div>
   <div class="ipres" id="pres" role="status"></div><div class="trick" id="ptv"></div><div class="ipfb" id="pfb"></div>`;
 // a link to this very position: at= the cards played yourself, pos= the step of the line
