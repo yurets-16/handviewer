@@ -48,7 +48,8 @@
   .card.played{color:var(--dim);opacity:.5}
   .card.now{background:var(--accent);color:var(--onaccent);font-weight:700;opacity:1}
   /* "hide played": the hands keep only the cards still to play; a print shows the whole deal anyway */
-  @media screen{ .hidepl .seat .card.played{display:none} }
+  @media screen{ .hidepl .seat .card.played{display:none}
+    .hidepl .seat .suit:has(.card):not(:has(.card:not(.played)))::after{content:"—";color:var(--dim)} }
   .tbtn.on{background:var(--sel);border-color:var(--accent)} #hidep{padding:0 8px}
   .mid{grid-column:2;grid-row:2;text-align:center;background:var(--well);border:1px solid var(--line);
     border-radius:10px;padding:8px 10px;min-width:98px}
@@ -107,9 +108,10 @@
   .quiz .seat.facedown .suit,.blind .seat.facedown .suit{visibility:hidden}
   .blind .ipmsg:not(.blindonly){display:none}
   .blind .ddbox,.blind .leadsbox,.blind #leadline,.blind #audit,.blind .rslt,.blind #ipdd,.blind #ipfb,
-  .blind #ipstart,.blind #ipu,.blind #ipf,.blind #iptrick,.blind #ipbest,.blind #ipclaim,.blind #ddonce,.blind #ddauto,.blind #plink{display:none}
+  .blind #ipstart,.blind #ipu,.blind #ipf,.blind #iptrick,.blind #ipbest,.blind #ipclaim,.blind #ddonce,.blind #plink{display:none}
   .blindonly{display:none} .blind .blindonly{display:block}
-  .quiz #tools,.blind #tools,.quiz #hidep{display:none}
+  .quiz #tools,.blind #tools,.quiz #hidep,.quiz .saves,.blind .saves{display:none}
+  .saves{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:5px;margin-top:9px;color:var(--dim);font-size:12px}
   .task .iptr,.task .play:not(.taskbtns) button,.task #ipdd,.task #ipfb,.task #ipaudit,.task #audit,
   .task .blindonly,.task .ipmsg,.task .ipres,.task .tchint{display:none}
   #audit,#ipaudit{font-size:12.5px;color:var(--dim);margin-bottom:6px}
@@ -207,9 +209,11 @@
       --well:#fff;--x:#c8102e;--vred:#c8102e;--link:#000}
     *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     body{background:#fff;color:#000;min-height:0} .top h1{color:#000} .wrap{max-width:none;padding:6px 0}
-    .top{padding:0 0 6px} #rotate,#hidep,#tools,#setbar,#back,#playbox,.tcbar,.tchint,.note,.mid{display:none!important}
+    .top{padding:0 0 6px} #rotate,#hidep,#ddstop,#tools,.saves,#setbar,#back,#playbox,.tcbar,.tchint,.note,.mid{display:none!important}
     .table{background:none;box-shadow:none;border-color:#999}
     .seat{max-width:none} .seat.toplay,.seat.onlead{outline:none;box-shadow:none}
+    .seat.n{grid-column:2!important;grid-row:1!important} .seat.s{grid-column:2!important;grid-row:3!important}
+    .seat.w{grid-column:1!important;grid-row:2!important} .seat.e{grid-column:3!important;grid-row:2!important}
     .card,.card.played,.card.now,.card.legal,.seat.facedown .card{opacity:1;text-decoration:none;background:none;color:inherit;font-weight:400;box-shadow:none}
     .seat.facedown .suit .s{opacity:1}
     .ddv{display:none} .playing .rslt{display:inline!important} .dd td.lo{color:#666} .dd td[data-tc]{text-decoration:none} .box{break-inside:avoid}
@@ -221,10 +225,8 @@
   <span id="setbar"></span>
   <button id="rotate" title="rotate the table — put the next seat at the bottom" style="margin-left:auto;display:none">&#8635;</button>
   <button class="tbtn" id="hidep" title="hide the played cards from the hands" aria-pressed="false" style="display:none"></button>
-  <span id="tools" style="display:none"><button class="tbtn" id="print" title="print the deal">&#9113;</button>
-    <button class="tbtn" id="svg" title="save the deal as a picture, SVG">SVG</button>
-    <button class="tbtn" id="png" title="save the deal as a picture, PNG">PNG</button>
-    <button class="tbtn" id="pbn" title="save the deal as a PBN file">PBN</button></span>
+  <button class="tbtn" id="ddstop" title="keep marking the cards of the hand on turn, until turned off" aria-pressed="false" style="display:none">DDS</button>
+  <span id="tools" style="display:none"><button class="tbtn" id="print" title="print the deal">&#9113;</button></span>
   <a id="back" href="#" style="display:none">&larr; back</a></div>
 <div class="wrap"><div id="app"><div class="empty">No deal in the link.</div></div></div>
 <script src="handviewer.lang.js"></script>
@@ -448,6 +450,7 @@ let BLIND=q.get("blind")==="1", SEQ=null, POS=Math.max(0,parseInt(q.get("pos"))|
 let NEED=7, CAN_IP=false, AUTO=null;
 function stopAuto(){ if(AUTO){ clearInterval(AUTO); AUTO=null; } }
 let bottomSeat="s"; const RHO={n:"w",w:"s",s:"e",e:"n"};   // rotate: which seat sits at the bottom
+let ROT_FOR="s";        // the seat the tab turned the table to: ↻ is left alone until a tab wants another
 function applyRotation(){                                   // place seats around the fixed centre
   const B=bottomSeat, pos={[B]:[2,3],[NEXT[B]]:[1,2],[PARTNER[B]]:[2,1],[RHO[B]]:[3,2]};   // bot,left,top,right
   for(const s of ["n","e","s","w"]){ const el=document.querySelector(".seat."+s);
@@ -503,6 +506,7 @@ function render(){
   HANDS=hands; DECL=NEXT[decl]?decl:"s"; LEADER0=leader||"";
   const tmpm=contract.match(/(NT|[shdc])/i); TRUMP=tmpm?tmpm[1].toUpperCase():"NT";
   NEED=6+(parseInt(contract[0])||1); CAN_IP=!!(contract&&NEXT[decl]); if(!CAN_IP) PLAYMODE="dd";
+  bottomSeat=ROT_FOR=DECL;                                 // the table opens from the seat that plays it
 
   let comp=`<div class="table">`;
   for(const s of ["n","w","e","s"]){ const dl=s===dealer, ld=s===leader;
@@ -531,7 +535,10 @@ function render(){
   const playbox=`<div class="box" id="playbox" style="margin-top:9px;display:none">
     <h2>${T("Play")}</h2><div class="pl-body"></div></div>`;
 
-  app.innerHTML=comp+`<div id="tray"></div>`+panels+tcBar()+playbox+
+  const saves=`<div class="saves">${T("Save the deal")}: <button class="tbtn" id="svg" ${tip(T("save the deal as a picture, SVG"))}>SVG</button>
+    <button class="tbtn" id="png" ${tip(T("save the deal as a picture, PNG"))}>PNG</button>
+    <button class="tbtn" id="pbn" ${tip(T("save the deal as a PBN file"))}>PBN</button></div>`;
+  app.innerHTML=comp+`<div id="tray"></div>`+panels+tcBar()+playbox+saves+
     `<div class="note">${T("Four-colour suits")}${VIEW?"":` · ${ACTUAL?T("the line shown is the table’s actual card play"):T("the line shown is double-dummy optimal, not the table’s actual play")}`}<span class="keys"><br>${T("Keys: <b>←</b>/<b>→</b> step, <b>↓</b> trick, <b>↑</b> or <b>Home</b> start, <b>End</b> finish · line: <b>space</b> auto · play: <b>Tab</b> and <b>Enter</b> pick a card, <b>U</b> or <b>Backspace</b> back, <b>R</b> restart, <b>B</b> best line, <b>C</b> claim · set: <b>PgUp</b>/<b>PgDn</b> deals, <b>Enter</b> next")}</span></div>`;
   if(bd) document.title=`${T("Board")} ${bd} · ${T("Hand viewer")}`;
   document.getElementById("sub").innerHTML=(bd?`${T("Board")} ${bd}${contract?" · ":""}`:"")+(contract?fmtContract(contract):"")+(decl?` ${esc(decl.toUpperCase())}`:"")+(result?` <span class="rslt">${esc(result)}</span>`:"")+(TC?` · ${T("practice contract")}`:"");
@@ -655,10 +662,13 @@ function hidePlayed(){ const b=document.getElementById("hidep"); let on=false;
 function renderPlay(){
   const body=document.getElementById("playbox").querySelector(".pl-body");
   stopAuto(); clearTimeout(autoTimer); if(IP) IP.solving=false;   // the old tab's timers must not outlive it
+  // "Guess the lead" is played from the hand on lead, every other tab from declarer
+  const nat=PLAYMODE==="quiz"&&LEADER0?LEADER0:DECL; if(nat!==ROT_FOR){ bottomSeat=ROT_FOR=nat; applyRotation(); }
   clearBoard(); renderTableCards([],null);
   document.body.classList.remove("quiz","blind","task"); document.querySelectorAll(".seat").forEach(s=>s.classList.remove("facedown"));
   const tbl=document.querySelector(".table"); if(tbl) tbl.classList.toggle("ipmode", ipTab()||PLAYMODE==="view");
   document.body.classList.toggle("playing",ipTab());
+  ipSyncDDSbtns();
   const tabs=`<div class="pmode" role="tablist">`+[["view",T("Deal")],["dd",ACTUAL?T("Card play at the table"):T("Double-dummy line")],["ip",T("Play it yourself")],["quiz",T("Guess the lead")],["task",T("Find the card")]].filter(([m])=>m==="view"?VIEW&&CAN_IP:m==="dd"?!VIEW||SEQ:CAN_IP&&(m==="ip"||API||PLAYMODE===m)).map(([m,l])=>
       `<button class="pm${PLAYMODE===m?" on":""}" data-mode="${m}" role="tab" aria-selected="${PLAYMODE===m}">${l}</button>`).join("")+`</div>`;
   if(PLAYMODE==="view") body.innerHTML=tabs;
@@ -917,7 +927,6 @@ const IP_CONTROLS=`<div class="iptr"><span class="trl">${T("You play")}</span>
     <button id="ipbest" title="${T("play out the double-dummy-optimal line from here to the end")}">${T("best line")} ▶</button>
     <button id="ipclaim" title="${T("claim — finish the hand double-dummy instantly and show the result")}">${T("claim")} ✓</button>
     <button id="ddonce" title="${T("mark every card of the hand on turn with its double-dummy result, to the end of this trick")}">${T("hint")}</button>
-    <button id="ddauto" title="${T("keep marking the cards of the hand on turn, until turned off")}">${T("always hint")}</button>
     ${LINK_BTN}
     <span class="tk" id="iptk"></span></div>
   <div class="ipres" id="ipres" role="status"></div>
@@ -1039,7 +1048,9 @@ function ipRenderDDV(){                                       // annotate the on
     s.textContent=d===0?'=':(d>0?'+'+d:''+d); el.appendChild(s);
     const t=document.querySelector(`.trc[data-k="${k}"]`); if(t) t.appendChild(s.cloneNode(true)); }); }
 const press=(b,on)=>{ b.classList.toggle('on',on); b.setAttribute('aria-pressed',on); };
-function ipSyncDDSbtns(){ const a=document.getElementById('ddauto'); if(a) press(a,ddsAuto);
+// DDS in the top bar keeps the hints on: only while you play the hand yourself with the API, not blind
+function ipSyncDDSbtns(){ const a=document.getElementById('ddstop');
+  if(a){ press(a,ddsAuto); a.style.display=PLAYMODE==="ip"&&API&&!BLIND?"":"none"; }
   const o=document.getElementById('ddonce'); if(o) o.disabled=ddsAuto; }
 function declTotal(sideTricks, side){                        // side's remaining DD tricks -> declarer total
   const declSide=(DECL==="n"||DECL==="s")?"ns":"ew", declWon=declSide==="ns"?IP.ns:IP.ew;
@@ -1084,9 +1095,9 @@ function wireInteractive(){
   document.getElementById('plink').onclick=function(){ copyLink(this,"at",IP.seq.join(",")); };
   document.getElementById('ipaudit').onclick=e=>{ const b=e.target.closest('button[data-at]'); if(b) ipJump(+b.dataset.at); };
   document.getElementById('ipr').onclick=()=>{ ddsOnce=false; clearTimeout(autoTimer); ipInit(); ipPaint(); };
-  const bo=document.getElementById('ddonce'), ba=document.getElementById('ddauto'), bl=document.getElementById('ipbest'),
+  const bo=document.getElementById('ddonce'), ba=document.getElementById('ddstop'), bl=document.getElementById('ipbest'),
         bc=document.getElementById('ipclaim');
-  if(!API){ [bo,ba,bl,bc,document.querySelector('.hintmsg')].forEach(x=>{ if(x) x.style.display='none'; }); }   // hints + solver need the eval API
+  if(!API){ [bo,bl,bc,document.querySelector('.hintmsg')].forEach(x=>{ if(x) x.style.display='none'; }); }   // hints + solver need the eval API
   else { bo.onclick=()=>{ ddsOnce=true; ipRenderDDV(); };
     ba.onclick=()=>{ ddsAuto=!ddsAuto; ddsOnce=false; ipSyncDDSbtns(); ipRenderDDV(); };
     if(bl) bl.onclick=ipBestLine; if(bc) bc.onclick=ipClaim; }
@@ -1095,7 +1106,7 @@ function wireInteractive(){
   document.getElementById('trblind').onclick=()=>{ IP.solving=false; BLIND=!BLIND;   // on: from the first card, as nothing was seen
     if(BLIND){ youPlay='decl'; ddsOnce=false; ipInit(); } ipSyncTrainer(); ipPaint(); };
   ipSyncTrainer(); ipSyncDDSbtns(); ipPaint(); }
-function ipSyncTrainer(){
+function ipSyncTrainer(){ ipSyncDDSbtns();
   document.querySelectorAll('.tr[data-you]').forEach(b=>press(b,b.dataset.you===youPlay));
   const th=document.getElementById('trhide'); if(th){ press(th,hideDD); th.style.display=youPlay!=='decl'||BLIND?'none':''; }
   const tb=document.getElementById('trblind'); if(tb) press(tb,BLIND);
@@ -1156,6 +1167,7 @@ document.addEventListener('keydown',e=>{
   if(e.ctrlKey||e.metaKey||e.altKey) return;
   if(/^(input|textarea|select)$/i.test(e.target.tagName||'')) return;
   if((e.key==='Enter'||e.key===' ')&&e.target.matches&&e.target.matches('.card.legal[tabindex]')){ keyCard=true; e.target.click(); e.preventDefault(); return; }
+  if(e.key===' '&&e.target.closest&&e.target.closest('button,a,[role=tab]')) return;
   if(SET&&(e.key==='PageUp'||e.key==='PageDown')){ const b=document.getElementById(e.key==='PageUp'?'sprev':'snext');
     if(b&&!b.disabled) b.click(); e.preventDefault(); return; }
   const box=document.getElementById('playbox');

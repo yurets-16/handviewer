@@ -83,8 +83,11 @@ view space is autoplay; when you play the hand yourself ⌫ or U also steps back
 the best line, C claims, and Tab reaches the cards, Enter or space plays one. In a set PgUp and PgDn
 change the deal, and Enter goes on from an answer.
 
-Played cards stay in the hands in grey; "hide played" at the top takes them out, and the page
-remembers the choice in this browser. A print always shows the whole deal.
+The table turns to declarer at the bottom, or to the hand on lead in "Guess the lead"; ↻ turns it a
+seat at a time. A print keeps North on top. Played cards stay in the hands in grey; "hide played" at the top takes them out,
+and the page remembers the choice in this browser. A print always shows the whole deal. When you play
+the hand yourself, DDS at the top keeps the double-dummy marks on the cards of the hand on turn.
+SVG, PNG and PBN at the foot of the page save the deal.
 
 On a phone or a touch screen the play stays right under the table and the hand on turn comes again
 there in cards big enough for a finger. A light system gets light colours.
