@@ -61,6 +61,7 @@
   .info.ne .auc{width:auto} .info.ne .auc th{font-size:10px;padding:0 4px 1px} .info.ne .auc td{font-size:12px;padding:1px 4px;color:var(--ink)}
   .info.ne .ah{display:block;font-size:10px;margin:0 0 1px 2px}
   .info.se{grid-column:3;grid-row:3;align-self:end;justify-self:end;text-align:right} .info.se .ct{font-size:18px;font-weight:700;color:var(--ink);white-space:nowrap}
+  .tally{display:block;white-space:nowrap} .tally:empty,.quiz .tally{display:none}
   /* current trick laid out on the "table": cards at each seat's direction */
   .tablecards{display:grid;grid-template-columns:1fr auto 1fr;grid-template-rows:auto auto auto;
     align-items:center;justify-items:center;column-gap:8px;min-height:56px;margin-top:2px}
@@ -209,7 +210,7 @@
       --well:#fff;--x:#c8102e;--vred:#c8102e;--link:#000}
     *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     body{background:#fff;color:#000;min-height:0} .top h1{color:#000} .wrap{max-width:none;padding:6px 0}
-    .top{padding:0 0 6px} #rotate,#hidep,#ddstop,#tools,.saves,#setbar,#back,#playbox,.tcbar,.tchint,.note,.mid{display:none!important}
+    .top{padding:0 0 6px} #rotate,#hidep,#ddstop,#tools,.saves,#setbar,#back,#playbox,.tcbar,.tchint,.note,.mid,.tally{display:none!important}
     .table{background:none;box-shadow:none;border-color:#999}
     .seat{max-width:none} .seat.toplay,.seat.onlead{outline:none;box-shadow:none}
     .seat.n{grid-column:2!important;grid-row:1!important} .seat.s{grid-column:2!important;grid-row:3!important}
@@ -490,6 +491,9 @@ function renderTableCards(trick, winSeat){
   box.querySelectorAll(".tc").forEach(el=>{ const p=el.dataset.pos;
     el.innerHTML=slots[p]||""; el.classList.toggle("win", p===wp && !!slots[p]); }); }
 
+// the tricks each side has taken, under the contract in the table's bottom-right corner
+function tally(ns, ew){ const el=document.getElementById("tally"); if(el) el.textContent=`NS: ${ns} EW: ${ew}`; }
+
 function vulText(v){ return {"-":T("None"),n:"N-S",e:"E-W",b:T("All")}[v]||T("None"); }
 function render(){
   const app=document.getElementById("app");
@@ -524,7 +528,7 @@ function render(){
       <span class="tc" data-pos="right"></span>
       <span class="tc" data-pos="bottom"></span>
     </div></div>`+(auc?`<div class="info ne">${TC?`<span class="ah">${T("Auction at the table")}</span>`:""}${auctionHTML(auc,dealer)}</div>`:"")
-    +(contract?`<div class="info se"><span class="ct">${fmtContract(contract)}${NM[decl]?`&nbsp;<span class="pardecl">${decl.toUpperCase()}</span>`:""}${result?` <span class="rslt">${esc(result)}</span>`:""}</span></div>`:"")+`</div>`;
+    +(contract?`<div class="info se"><span class="ct">${fmtContract(contract)}${NM[decl]?`&nbsp;<span class="pardecl">${decl.toUpperCase()}</span>`:""}${result?` <span class="rslt">${esc(result)}</span>`:""}</span><span class="tally" id="tally"></span></div>`:"")+`</div>`;
 
   let panels=`<div class="panels">`;
   DEALER=dealer; VUL=vul;
@@ -664,7 +668,7 @@ function renderPlay(){
   stopAuto(); clearTimeout(autoTimer); if(IP) IP.solving=false;   // the old tab's timers must not outlive it
   // "Guess the lead" is played from the hand on lead, every other tab from declarer
   const nat=PLAYMODE==="quiz"&&LEADER0?LEADER0:DECL; if(nat!==ROT_FOR){ bottomSeat=ROT_FOR=nat; applyRotation(); }
-  clearBoard(); ipClearDDV(); lineDDVtok++; renderTableCards([],null);
+  clearBoard(); ipClearDDV(); lineDDVtok++; renderTableCards([],null); tally(0,0);
   document.body.classList.remove("quiz","blind","task"); document.querySelectorAll(".seat").forEach(s=>s.classList.remove("facedown"));
   const tbl=document.querySelector(".table"); if(tbl) tbl.classList.toggle("ipmode", ipTab()||PLAYMODE==="view");
   document.body.classList.toggle("playing",ipTab());
@@ -883,6 +887,7 @@ function wirePlay(){
     let ns=0, ew=0;
     for(let i=0; i+4<=POS; i+=4){ const w=winner(SEQ.slice(i,i+4),TRUMP);
       if(w==="n"||w==="s") ns++; else ew++; }
+    tally(ns, ew);
     const dside=(DECL==="n"||DECL==="s")?"ns":"ew", dt=dside==="ns"?ns:ew;
     const done=SEQ.length===52&&POS===52&&CAN_IP, d=dt-NEED, dw=T("declarer");
     document.getElementById('ptk').textContent=
@@ -997,7 +1002,7 @@ function ipPaint(){ if(!ipTab()) return; clearBoard(); clearTimeout(autoTimer);
   document.getElementById('iptv').innerHTML=IP.trick.map((t,i)=>
     `<span class="pc${i===iwin?' win':(i===IP.trick.length-1&&IP.trick.length<4?' lead':'')}"><span class="who">${t.who.toUpperCase()}</span>${cardHTML(t.card)}</span>`).join("");
   const th=document.getElementById('ipth'); if(th) th.innerHTML=ipHistoryHTML();
-  renderTableCards(IP.trick, IP.trick.length===4?winner(IP.trick,TRUMP):null);
+  renderTableCards(IP.trick, IP.trick.length===4?winner(IP.trick,TRUMP):null); tally(IP.ns, IP.ew);
   const declSide=(DECL==="n"||DECL==="s")?"ns":"ew", dt=declSide==="ns"?IP.ns:IP.ew;
   const tk=document.getElementById('iptk');
   const done=document.getElementById('ipres'); done.classList.toggle('down',dt<NEED);
