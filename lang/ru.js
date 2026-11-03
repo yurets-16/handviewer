@@ -110,6 +110,8 @@ text:{
   "restart|again":"сначала",
   "right cards: {0}":"верных карт: {0}",
   "rotate the table — put the next seat at the bottom":"повернуть стол: следующая рука внизу",
+  "hide the played cards from the hands":"убрать сыгранные карты из рук",
+  "hide played":"убрать сыгранные",
   "save the deal as a PBN file":"сохранить сдачу файлом PBN",
   "save the deal as a picture, PNG":"сохранить сдачу картинкой, PNG",
   "save the deal as a picture, SVG":"сохранить сдачу картинкой, SVG",

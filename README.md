@@ -60,6 +60,7 @@ Letters are case-insensitive. Only the hands are required.
 | `p`    | a card play sequence from the opening lead, separated by commas or spaces | `h2,hq,h9,h6` |
 | `pa`   | `1` = the `p` line is the play at the table; otherwise it is labelled a double-dummy line | `1` |
 | `pl`   | who sat where: `name\|team` per seat in the order N, E, S, W, joined by `~` | `Ann\|Lions~Bob\|Tigers~…` |
+| `nn` `en` `sn` `wn` | a player per seat as BBO links give them, without a team; `pl` wins | `nn=Ann&sn=Bob` |
 | `l`    | opening lead the DD line starts from; ▶, best line and claim open with it too, and the play panel says what it cost | `c9`, `ct` (or `c10`) |
 | `at`   | open "Play it yourself" with these cards played; the ⧉ button makes such a link | `c5,cq,c2` |
 | `pos`  | open the line at this step; the ⧉ button makes such a link | `17` |
@@ -81,6 +82,9 @@ Keyboard: in both views ←/→ step, ↓ next trick, ↑ or Home first card, En
 view space is autoplay; when you play the hand yourself ⌫ or U also steps back, R restarts, B plays
 the best line, C claims, and Tab reaches the cards, Enter or space plays one. In a set PgUp and PgDn
 change the deal, and Enter goes on from an answer.
+
+Played cards stay in the hands in grey; "hide played" at the top takes them out, and the page
+remembers the choice in this browser. A print always shows the whole deal.
 
 On a phone or a touch screen the play stays right under the table and the hand on turn comes again
 there in cards big enough for a finger. A light system gets light colours.
