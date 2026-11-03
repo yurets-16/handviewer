@@ -248,6 +248,56 @@ const tip=t=>`title="${t}" aria-label="${t}"`;                                 /
 document.documentElement.lang=LANG.lang||"en"; document.title=document.querySelector(".top h1").textContent=T("Hand viewer");
 document.querySelectorAll("[title]").forEach(e=>{ e.title=T(e.title); e.setAttribute("aria-label",e.title); });
 document.getElementById("back").innerHTML=`&larr; ${T("back")}`; document.querySelector(".empty").textContent=T("No deal in the link.");
+// The rest of BBO's handviewer parameters. lin= is a whole LIN record, BBO's own file: its deal,
+// board, players, auction, play and claim become the ordinary parameters (the first board of a file).
+// linurl= fetches one from elsewhere and opens the page again with what it holds; myhand= names a
+// deal in BBO's own store, which only BBO can read, so the page sends you there. A c= that is a number
+// is BBO's tricks claimed, not a contract: the result comes from it and the auction's contract. p=
+// comes run together too (SAS2S3…), tbt=y steps the line a trick at a time, k= changes nothing here.
+// Such a line is the play at the table, as pa=1 says.
+const SEATS4=["n","e","s","w"], hasDeal=()=>SEATS4.some(s=>q.get(s));
+function linParams(lin){ const out={}, calls=[], cards=[], tok=String(lin||"").split("|");
+  for(let i=0;i+1<tok.length;i+=2){ const k=tok[i].trim().toLowerCase(), v=tok[i+1].trim();
+    if((k==="qx"||k==="md")&&out.n) break;                                   // the next board
+    if(k==="md"){ const order=["s","w","n","e"], hs=v.slice(1).split(",");
+      out.d=({1:"s",2:"w",3:"n",4:"e"})[v[0]]||"n";
+      order.forEach((st,j)=>{ out[st]=(hs[j]||"").replace(/[^SHDCAKQJT2-9]/gi,""); });
+      const miss=order.filter(st=>!out[st]);                                 // LIN may leave the 4th out
+      if(miss.length===1) out[miss[0]]=ORDER.split("").map(su=>su+"AKQJT98765432".split("").filter(r=>
+        !order.some(st=>st!==miss[0]&&parseHand(out[st])[su].includes(r))).join("")).join(""); }
+    else if(k==="sv") out.v=({o:"-",0:"-",n:"n",e:"e",b:"b"})[v.toLowerCase()]||"-";
+    else if(k==="ah"){ const b=v.match(/\d+/); if(b) out.b=b[0]; }
+    else if(k==="pn") v.split(",").slice(0,4).forEach((nm,j)=>{ if(nm.trim()) out[["s","w","n","e"][j]+"n"]=nm.trim(); });
+    else if(k==="mb") calls.push(v.replace(/!/g,""));
+    else if(k==="pc"&&/^[shdc](?:10|[2-9tjqka])$/i.test(v)) cards.push(v.replace(/10$/,"t").toLowerCase());
+    else if(k==="mc"&&/^\d{1,2}$/.test(v)) out.c=v; }
+  if(calls.length) out.a=calls.join("-");
+  if(cards.length) out.p=cards.join(",");
+  return out; }
+let BBO=false, CLAIM=null;
+(function readBBO(){
+  if(q.get("lin")&&!hasDeal()){ for(const [k,v] of Object.entries(linParams(q.get("lin")))) if(!q.has(k)) q.set(k,v); BBO=true; }
+  const c=(q.get("c")||"").trim();
+  if(/^\d{1,2}$/.test(c)){ q.delete("c"); BBO=true; if(+c<=13) CLAIM=+c; }
+  const pl=(q.get("p")||"").replace(/\s+/g,"");
+  if(pl&&/^([shdc](?:10|[2-9tjqka]))+$/i.test(pl)&&!/,/.test(q.get("p"))){
+    q.set("p",pl.match(/[shdc](?:10|[2-9tjqka])/gi).map(x=>x.replace(/10$/,"t")).join(",")); BBO=true; }
+  if(/^[^-,\s]{2,}$/.test(q.get("a")||"")) BBO=true;                        // ppp3NDppp, calls run together
+})();
+// linurl= and myhand= hold the deal somewhere else: the page has to fetch it, or hand it to BBO
+function bboHere(k,v,msg){ const e=document.querySelector(".empty");
+  e.innerHTML=`${esc(msg)} <a href="https://www.bridgebase.com/tools/handviewer.html?${k}=${encodeURIComponent(v)}" rel="noopener">${esc(T("Open it on BBO"))}</a>`; }
+if(!hasDeal()&&q.get("linurl")) (async()=>{ const v=q.get("linurl");
+  try{ const u=new URL(v,location.href); if(!/^https?:$/.test(u.protocol)) throw 0;
+    const t=await (await fetch(u)).text(), x=/<\w/.test(t)?new DOMParser().parseFromString(t,"text/xml"):null;
+    const lin=x?((x.querySelector("lin")||x.documentElement||{}).textContent||""):t, got=linParams(lin);
+    if(!got.n) throw 0;
+    const p=new URLSearchParams(location.search); p.delete("linurl");
+    for(const [k,val] of Object.entries(got)) if(!p.has(k)) p.set(k,val);
+    location.replace(location.pathname+"?"+p);
+  }catch(e){ bboHere("linurl",v,T("Could not read the LIN file at that address.")); } })();
+else if(!hasDeal()&&q.get("myhand")) bboHere("myhand",q.get("myhand"),T("This deal is kept on BBO."));
+const TBT=(q.get("tbt")||"").toLowerCase()==="y";
 // a= also comes run together, as in BBO's own handviewer links (ppp3NDppp, D and R for the doubles),
 // and such a link gives the contract nowhere else: put the calls in our form and read c= and dl=
 // out of them, so everything below sees an ordinary link. 3N and 3S x in c= are the same shorthand.
@@ -266,6 +316,9 @@ document.getElementById("back").innerHTML=`&larr; ${T("back")}`; document.queryS
     seat=NEXT[seat]; return call; });
   q.set("a",out.join("-"));
   if(last&&!q.get("c")){ q.set("c",last.call+dbl); if(!q.get("dl")) q.set("dl",first[last.k]); } })();
+if(CLAIM!=null&&!q.get("r")){ const m=(q.get("c")||"").match(/^[1-7]/); if(m){ const d=CLAIM-6-(+m[0]);
+  q.set("r",d>0?"+"+d:d<0?String(d):"="); } }
+if(BBO&&q.get("p")&&!q.has("pa")) q.set("pa","1");
 // tc=3nt.s: a contract to practise, the deal replayed with another contract or declarer. c= and dl=
 // stay in the address and come back with it; on this page what the table did is gone with them.
 const TC_OK=!q.has("set")&&["n","e","s","w"].every(s=>q.get(s));
@@ -903,7 +956,7 @@ function wirePlay(){
     lineDDV();
   };
   const step=n=>{ POS=Math.max(0,Math.min(SEQ.length,POS+n)); paint(); };
-  document.getElementById('pn').onclick=()=>step(1);
+  document.getElementById('pn').onclick=()=>TBT?document.getElementById('pt').click():step(1);   // tbt=y, BBO's NEXT by the trick
   document.getElementById('pp').onclick=()=>step(-1);
   document.getElementById('pf').onclick=()=>{POS=0;paint();};
   document.getElementById('pt').onclick=()=>step(Math.min(SEQ.length,(Math.floor(POS/4)+1)*4)-POS);

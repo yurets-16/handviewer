@@ -50,14 +50,14 @@ Letters are case-insensitive. Only the hands are required.
 | `n` `e` `s` `w` | a hand: each suit letter followed by its ranks | `sA643hKJT8d92cAK3` |
 | `d`    | dealer (default `n`) | `e` |
 | `v`    | vulnerability: `-` none, `n` N-S, `e` E-W, `b` both | `b` |
-| `c`    | contract, with `x`/`xx` for doubled/redoubled | `4s`, `3nt` (or `3n`), `5dx` |
+| `c`    | contract, with `x`/`xx` for doubled/redoubled; a bare number is BBO's tricks claimed (see below) | `4s`, `3nt` (or `3n`), `5dx` |
 | `dl`   | declarer; with `c`, it turns on the play panel | `n` |
 | `r`    | result, shown as text next to the contract | `+1`, `=`, `-2` |
 | `b`    | board number | `12` |
 | `a`    | auction from the dealer, calls separated by `-` or `,`: `p`, `x`, `xx`, `1c` … `7nt`; run together as in BBO, with `D` and `R` for the doubles, it works too. Without `c`, the contract and declarer are read from it | `1nt-p-3nt-p-p-p`, `ppp3NDppp` |
 | `dd`   | makeable tricks: 20 base-36 digits, five per seat in the order N, E, S, W, and within a seat NT, ♠, ♥, ♦, ♣; left out, the page asks the API for them | `bbba922233bbba922233` |
 | `par`  | par: level, strain, optional declarer, then free text; left out, it is worked out from `dd`, `d` and `v` | `3ntn +460` |
-| `p`    | a card play sequence from the opening lead, separated by commas or spaces | `h2,hq,h9,h6` |
+| `p`    | a card play sequence from the opening lead, separated by commas or spaces, or run together as in BBO | `h2,hq,h9,h6`, `H2HQH9H6` |
 | `pa`   | `1` = the `p` line is the play at the table; otherwise it is labelled a double-dummy line | `1` |
 | `pl`   | who sat where: `name\|team` per seat in the order N, E, S, W, joined by `~` | `Ann\|Lions~Bob\|Tigers~…` |
 | `nn` `en` `sn` `wn` | a player per seat as BBO links give them, without a team; `pl` wins | `nn=Ann&sn=Bob` |
@@ -135,13 +135,29 @@ in this browser, under the set's address. A deal's own mode in its string wins o
 
 ## Links in BBO's format
 
-A link written for BBO's handviewer works here as it stands: `b`, `d`, `v`, `n`, `e`, `s`, `w` and
-`a` mean the same, `--` is a void, and only the address changes:
+A link written for BBO's handviewer works here as it stands: `b`, `d`, `v`, `n`, `e`, `s`, `w`,
+`a`, `p` and the names `nn`, `en`, `sn`, `wn` mean the same, `--` is a void, and only the address
+changes:
 
 ```
 https://www.bridgebase.com/tools/handviewer.html?b=1&d=n&v=-&n=s--hKQT96dAT94cAT86&…&a=ppp3NDppp
 https://example.org/handviewer.html?b=1&d=n&v=-&n=s--hKQT96dAT94cAT86&…&a=ppp3NDppp
 ```
+
+The rest of BBO's parameters:
+
+- `c` is a number there, the tricks declarer claimed: the play stops where `p` stops, and the result
+  comes from the claim and the contract the auction gives.
+- `lin` holds a whole LIN record, BBO's own file. Its deal, board, vulnerability, players, auction,
+  play and claim stand in for the parameters above; of a file with several boards, the first.
+- `linurl` is the address of such a file, plain or in an XML wrapper. The page fetches it and opens
+  again with what it holds; when the other site does not allow that, it offers the deal on BBO.
+- `myhand` names a deal in BBO's own store, which only BBO can read, so the page links to it there.
+- `tbt=y` makes ▶ and → step the line a trick at a time, as BBO's NEXT button does.
+- `k` (kibitz) changes nothing: all four hands always show.
+
+A play from a BBO link, run together or from a LIN record, or with a claim, is taken as the play at
+the table, as `pa=1` marks it.
 
 The PBN button saves the deal as a file: the hands, dealer, vulnerability, contract, result, auction
 and players the link gives, `?` for what it does not, and the play only when `pa=1` marks it as the
