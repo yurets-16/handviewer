@@ -664,7 +664,7 @@ function renderPlay(){
   stopAuto(); clearTimeout(autoTimer); if(IP) IP.solving=false;   // the old tab's timers must not outlive it
   // "Guess the lead" is played from the hand on lead, every other tab from declarer
   const nat=PLAYMODE==="quiz"&&LEADER0?LEADER0:DECL; if(nat!==ROT_FOR){ bottomSeat=ROT_FOR=nat; applyRotation(); }
-  clearBoard(); renderTableCards([],null);
+  clearBoard(); ipClearDDV(); lineDDVtok++; renderTableCards([],null);
   document.body.classList.remove("quiz","blind","task"); document.querySelectorAll(".seat").forEach(s=>s.classList.remove("facedown"));
   const tbl=document.querySelector(".table"); if(tbl) tbl.classList.toggle("ipmode", ipTab()||PLAYMODE==="view");
   document.body.classList.toggle("playing",ipTab());
@@ -895,6 +895,7 @@ function wirePlay(){
     document.getElementById('pfb').textContent=lost>0?`▲ ${NM[SEQ[POS-1].who]} ${gaveUp(lost)}`:"";
     document.getElementById('pp').disabled=POS===0; document.getElementById('pf').disabled=POS===0;
     document.getElementById('pn').disabled=POS>=SEQ.length; document.getElementById('pt').disabled=POS>=SEQ.length;
+    lineDDV();
   };
   const step=n=>{ POS=Math.max(0,Math.min(SEQ.length,POS+n)); paint(); };
   document.getElementById('pn').onclick=()=>step(1);
@@ -1043,18 +1044,30 @@ function ipRenderDDV(){                                       // annotate the on
   if(!(ddsAuto||ddsOnce)||!IP||!IP.eval||IP.done||isHidden(IP.turn)||veiled()) return;
   document.querySelectorAll(`.seat.${IP.turn} .card.legal`).forEach(el=>{
     const k=el.getAttribute('data-c').slice(1), v=IP.eval.cards[k]; if(v==null) return;
-    const d=declTotal(v, IP.eval.side)-NEED;                  // contract result if this card is played
-    const s=document.createElement('sup'); s.className='ddv '+(d<0?'set':'made');
-    s.textContent=d===0?'=':(d>0?'+'+d:''+d); el.appendChild(s);
+    const s=ddvSup(declTotal(v, IP.eval.side)-NEED); el.appendChild(s);   // contract result if this card is played
     const t=document.querySelector(`.trc[data-k="${k}"]`); if(t) t.appendChild(s.cloneNode(true)); }); }
+function ddvSup(d){ const s=document.createElement('sup'); s.className='ddv '+(d<0?'set':'made');
+  s.textContent=d===0?'=':(d>0?'+'+d:''+d); return s; }
+// DDS over a line, the table's or the double-dummy one: before each card the hand on turn has its
+// cards marked the same way. One request per position, kept for stepping back and forth.
+const LINE_DDV={}; let lineDDVtok=0;
+async function lineDDV(){ ipClearDDV(); const tok=++lineDDVtok;
+  if(!ddsAuto||!API||PLAYMODE!=="dd"||!SEQ||!CAN_IP||POS>=SEQ.length) return;
+  const at=POS, who=SEQ[at].who;
+  if(!LINE_DDV[at]) try{ LINE_DDV[at]=evalOf(await (await fetch(apiURL({played:SEQ.slice(0,at).map(x=>x.card.toLowerCase()).join(",")}))).json()); }catch(e){}
+  const ev=LINE_DDV[at]; if(!ev||tok!==lineDDVtok||!ddsAuto||PLAYMODE!=="dd") return;
+  let ns=0, ew=0; for(let i=0;i+4<=at;i+=4){ const w=winner(SEQ.slice(i,i+4),TRUMP); if(w==="n"||w==="s") ns++; else ew++; }
+  for(const [k,v] of Object.entries(ev.cards)){ const el=cardEl(k,who); if(el) el.appendChild(ddvSup(declTotal(v,ev.side,ns,ew)-NEED)); } }
 const press=(b,on)=>{ b.classList.toggle('on',on); b.setAttribute('aria-pressed',on); };
-// DDS in the top bar keeps the hints on: only while you play the hand yourself with the API, not blind
+// DDS in the top bar keeps the hints on: over a line, or while you play the hand yourself and not
+// blind; never in the problems, whose answer it would give away. It needs the API and a contract.
 function ipSyncDDSbtns(){ const a=document.getElementById('ddstop');
-  if(a){ press(a,ddsAuto); a.style.display=PLAYMODE==="ip"&&API&&!BLIND?"":"none"; }
+  if(a){ press(a,ddsAuto); a.style.display=(PLAYMODE==="dd"||PLAYMODE==="ip"&&!BLIND)&&API&&CAN_IP?"":"none";
+    a.onclick=()=>{ ddsAuto=!ddsAuto; ddsOnce=false; ipSyncDDSbtns(); if(PLAYMODE==="ip") ipRenderDDV(); else lineDDV(); }; }
   const o=document.getElementById('ddonce'); if(o) o.disabled=ddsAuto; }
-function declTotal(sideTricks, side){                        // side's remaining DD tricks -> declarer total
-  const declSide=(DECL==="n"||DECL==="s")?"ns":"ew", declWon=declSide==="ns"?IP.ns:IP.ew;
-  const remaining=13-(IP.ns+IP.ew);
+function declTotal(sideTricks, side, ns=IP.ns, ew=IP.ew){    // side's remaining DD tricks -> declarer total
+  const declSide=(DECL==="n"||DECL==="s")?"ns":"ew", declWon=declSide==="ns"?ns:ew;
+  const remaining=13-(ns+ew);
   return declWon+(side===declSide?sideTricks:(remaining-sideTricks)); }
 function ipShowEval(){ const dd=document.getElementById('ipdd'); if(!dd||IP.curOpt==null) return;
   const df=IP.curOpt-NEED;
@@ -1095,11 +1108,10 @@ function wireInteractive(){
   document.getElementById('plink').onclick=function(){ copyLink(this,"at",IP.seq.join(",")); };
   document.getElementById('ipaudit').onclick=e=>{ const b=e.target.closest('button[data-at]'); if(b) ipJump(+b.dataset.at); };
   document.getElementById('ipr').onclick=()=>{ ddsOnce=false; clearTimeout(autoTimer); ipInit(); ipPaint(); };
-  const bo=document.getElementById('ddonce'), ba=document.getElementById('ddstop'), bl=document.getElementById('ipbest'),
+  const bo=document.getElementById('ddonce'), bl=document.getElementById('ipbest'),
         bc=document.getElementById('ipclaim');
   if(!API){ [bo,bl,bc,document.querySelector('.hintmsg')].forEach(x=>{ if(x) x.style.display='none'; }); }   // hints + solver need the eval API
   else { bo.onclick=()=>{ ddsOnce=true; ipRenderDDV(); };
-    ba.onclick=()=>{ ddsAuto=!ddsAuto; ddsOnce=false; ipSyncDDSbtns(); ipRenderDDV(); };
     if(bl) bl.onclick=ipBestLine; if(bc) bc.onclick=ipClaim; }
   document.querySelectorAll('.tr[data-you]').forEach(b=>b.onclick=()=>{ IP.solving=false; BLIND=false; youPlay=b.dataset.you; ipSyncTrainer(); ipPaint(); });
   const th=document.getElementById('trhide'); if(th) th.onclick=()=>{ IP.solving=false; hideDD=!hideDD; ipSyncTrainer(); ipPaint(); };

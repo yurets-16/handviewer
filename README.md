@@ -85,8 +85,9 @@ change the deal, and Enter goes on from an answer.
 
 The table turns to declarer at the bottom, or to the hand on lead in "Guess the lead"; ↻ turns it a
 seat at a time. A print keeps North on top. Played cards stay in the hands in grey; "hide played" at the top takes them out,
-and the page remembers the choice in this browser. A print always shows the whole deal. When you play
-the hand yourself, DDS at the top keeps the double-dummy marks on the cards of the hand on turn.
+and the page remembers the choice in this browser. A print always shows the whole deal. DDS at the top
+marks the cards of the hand on turn with what the contract makes after each, card by card along a
+line or while you play the hand yourself.
 SVG, PNG and PBN at the foot of the page save the deal.
 
 On a phone or a touch screen the play stays right under the table and the hand on turn comes again
