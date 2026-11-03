@@ -12,7 +12,6 @@ text:{
   "any other card gives up at least":"другая карта отдаёт минимум",
   "at the table":"за столом",
   "At the table":"За столом",
-  "Auction":"Торговля",
   "Auction at the table":"Торговля за столом",
   "auto":"авто",
   "back":"назад",
