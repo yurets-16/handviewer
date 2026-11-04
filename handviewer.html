@@ -37,6 +37,10 @@
   .seat .who b{color:var(--ink);font-weight:600}
   .seat .who span{display:block;font-size:10px;color:var(--dim);letter-spacing:.03em}
   .seat.onlead{outline:2px solid var(--accent);outline-offset:1px}
+  /* in declarer's label: turn the table to declarer at the bottom, and back to North on top */
+  .declbot{background:var(--btn);border:1px solid var(--accent);color:var(--accent);border-radius:6px;
+    font-size:11px;line-height:1.3;padding:1px 6px;margin-left:5px;cursor:pointer;white-space:nowrap}
+  .declbot:hover{background:var(--sel)} .declbot[hidden]{display:none}
   /* long suit (up to 13 cards) must never widen the seat past its track and force a page scroll —
      wrap the overflow cards onto a second line rather than overflowing. The hanging indent
      (padding on the row, negative margin on the symbol) keeps wrapped cards aligned under the
@@ -210,7 +214,7 @@
       --well:#fff;--x:#c8102e;--vred:#c8102e;--link:#000}
     *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     body{background:#fff;color:#000;min-height:0} .top h1{color:#000} .wrap{max-width:none;padding:6px 0}
-    .top{padding:0 0 6px} #rotate,#hidep,#ddstop,#tools,.saves,#setbar,#back,#playbox,.tcbar,.tchint,.note,.mid,.tally{display:none!important}
+    .top{padding:0 0 6px} #rotate,.declbot,#hidep,#ddstop,#tools,.saves,#setbar,#back,#playbox,.tcbar,.tchint,.note,.mid,.tally{display:none!important}
     .table{background:none;box-shadow:none;border-color:#999}
     .seat{max-width:none} .seat.toplay,.seat.onlead{outline:none;box-shadow:none}
     .seat.n{grid-column:2!important;grid-row:1!important} .seat.s{grid-column:2!important;grid-row:3!important}
@@ -514,7 +518,12 @@ let ROT_FOR="s";        // the seat the tab turned the table to: ↻ is left alo
 function applyRotation(){                                   // place seats around the fixed centre
   const B=bottomSeat, pos={[B]:[2,3],[NEXT[B]]:[1,2],[PARTNER[B]]:[2,1],[RHO[B]]:[3,2]};   // bot,left,top,right
   for(const s of ["n","e","s","w"]){ const el=document.querySelector(".seat."+s);
-    if(el&&pos[s]){ el.style.gridColumn=pos[s][0]; el.style.gridRow=pos[s][1]; } } }
+    if(el&&pos[s]){ el.style.gridColumn=pos[s][0]; el.style.gridRow=pos[s][1]; } }
+  declBtn(); }
+// the button in declarer's label: declarer to the bottom when it sits elsewhere, then North back on top
+function declBtn(){ const b=document.getElementById("declbot"); if(!b) return;
+  const down=bottomSeat!==DECL, t=down?T("declarer at the bottom"):T("North on top again");
+  b.hidden=!down&&DECL==="s"; b.textContent=down?`⇩ ${T("to the bottom")}`:"⇧ N"; b.title=t; b.setAttribute("aria-label",t); }
 function buildSeq(cards){ if(!cards||!cards.length) return null;
   const decl=(q.get("dl")||"s").toLowerCase(); let cur=NEXT[decl];
   const tm=(q.get("c")||"NT").match(/(NT|[shdc])/i); const trump=tm?tm[1].toUpperCase():"NT";
@@ -569,13 +578,13 @@ function render(){
   HANDS=hands; DECL=NEXT[decl]?decl:"s"; LEADER0=leader||"";
   const tmpm=contract.match(/(NT|[shdc])/i); TRUMP=tmpm?tmpm[1].toUpperCase():"NT";
   NEED=6+(parseInt(contract[0])||1); CAN_IP=!!(contract&&NEXT[decl]); if(!CAN_IP) PLAYMODE="dd";
-  bottomSeat=ROT_FOR=DECL;                                 // the table opens from the seat that plays it
+  bottomSeat=ROT_FOR="s";                                  // North on top; declarer's button turns it
 
   let comp=`<div class="table">`;
   for(const s of ["n","w","e","s"]){ const dl=s===dealer, ld=s===leader;
     comp+=`<div class="seat ${s} ${dl?'deal':''} ${ld?'onlead':''}">
       <div class="lbl"><b class="${isVul(s)?'vred':''}">${NM[s]}</b>
-        <span>${dl?T("Dealer"):''}${ld?`<span class="leadmark"> ◆ ${T("on lead")}</span>`:''}</span></div>
+        <span>${dl?T("Dealer"):''}${ld?`<span class="leadmark"> ◆ ${T("on lead")}</span>`:''}${s===decl?'<button class="declbot" id="declbot" hidden></button>':''}</span></div>
       ${PL&&PL[s]?`<div class="who"><b>${esc(PL[s].n)}</b>${PL[s].t?`<span>${esc(PL[s].t)}</span>`:""}</div>`:""}
       <div class="hand">${handHTML(hands[s], s)}</div></div>`; }
   const bd=/^\d+$/.test(q.get("b")||"")?q.get("b"):"";                 // digits only: it reaches innerHTML
@@ -612,6 +621,8 @@ function render(){
     if(url.protocol==="http:"||url.protocol==="https:"){ back.href=url.href; back.style.display=""; } }catch(e){} }
   const rot=document.getElementById("rotate");
   if(rot){ rot.style.display=""; rot.onclick=()=>{ bottomSeat=NEXT[bottomSeat]; applyRotation(); renderTableCards(...ON_TABLE); }; }
+  const db=document.getElementById("declbot");
+  if(db) db.onclick=()=>{ bottomSeat=bottomSeat===DECL?"s":DECL; applyRotation(); renderTableCards(...ON_TABLE); };
   document.getElementById("tools").style.display="";
   document.getElementById("print").onclick=()=>window.print();
   document.getElementById("svg").onclick=()=>saveFile(new Blob([dealSVG()],{type:"image/svg+xml"}),"svg");
@@ -725,8 +736,8 @@ function hidePlayed(){ const b=document.getElementById("hidep"); let on=false;
 function renderPlay(){
   const body=document.getElementById("playbox").querySelector(".pl-body");
   stopAuto(); clearTimeout(autoTimer); if(IP) IP.solving=false;   // the old tab's timers must not outlive it
-  // "Guess the lead" is played from the hand on lead, every other tab from declarer
-  const nat=PLAYMODE==="quiz"&&LEADER0?LEADER0:DECL; if(nat!==ROT_FOR){ bottomSeat=ROT_FOR=nat; applyRotation(); }
+  // "Guess the lead" is played from the hand on lead, every other tab with North on top
+  const nat=PLAYMODE==="quiz"&&LEADER0?LEADER0:"s"; if(nat!==ROT_FOR){ bottomSeat=ROT_FOR=nat; applyRotation(); }
   clearBoard(); ipClearDDV(); lineDDVtok++; renderTableCards([],null); tally(0,0);
   document.body.classList.remove("quiz","blind","task"); document.querySelectorAll(".seat").forEach(s=>s.classList.remove("facedown"));
   const tbl=document.querySelector(".table"); if(tbl) tbl.classList.toggle("ipmode", ipTab()||PLAYMODE==="view");
