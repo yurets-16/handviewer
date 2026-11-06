@@ -387,7 +387,7 @@ let DEALER="n", VUL="-", PAR_NS=null;
 function ddBox(dd){ const own=calcPar(dd,DEALER,VUL), par=q.get("par")||own, m=own.match(/NS ([+-]?\d+)$/);
   PAR_NS=own==="Passed out"?0:m?+m[1]:null;
   const shown=par==="Passed out"?T("Passed out"):fmtPar(par);
-  return `<div class="box ddbox"><h2>${T("Double-dummy — makeable tricks")}</h2>${ddHTML(dd)}${par?`<div class="par">${T("Par")}: <b>${shown}</b></div>`:""}${TC_OK?`<div class="tchint">${T("click a cell to try that contract")}</div>`:""}</div>`; }
+  return `<div class="box ddbox"><h2>${T("Double-dummy — makeable tricks")}</h2>${ddHTML(dd)}${par?`<div class="par">${T("Minimax")}: <b>${shown}</b></div>`:""}${TC_OK?`<div class="tchint">${T("click a cell to try that contract")}</div>`:""}</div>`; }
 function ddHTML(dd){ const strains=["NT","s","h","d","c"], seats=["n","s","e","w"];
   const IDX={n:0,e:1,s:2,w:3};   // dd is packed seat-major N,E,S,W — map each display row to its block
   let g=`<table class="dd"><tr><th></th>${strains.map(s=>`<th>${s==="NT"?"NT":suitSym(s)}</th>`).join("")}</tr>`;
@@ -922,7 +922,7 @@ function scoreOf(tricks){ const m=(q.get("c")||"").match(/^(\d)(nt|[shdc])(x{0,2
   const ns=DECL==="n"||DECL==="s", s=bridgeScore(+m[1],m[2][0].toLowerCase(),m[3].length,tricks,VUL==="b"||VUL===(ns?"n":"e"));
   return ns?s:-s; }
 function scoreLine(tricks){ const s=scoreOf(tricks); if(s==null) return "";
-  let out=` · NS ${signed(s)}`; if(PAR_NS!=null) out+=` · ${T("par")} ${signed(PAR_NS)} (${signed(s-PAR_NS)})`;
+  let out=` · NS ${signed(s)}`; if(PAR_NS!=null) out+=` · ${T("minimax")} ${signed(PAR_NS)} (${signed(s-PAR_NS)})`;
   const r=(q.get("r")||"").match(/^(=|[+-]\d+)$/);
   if(r&&PLAYMODE==="ip") out+=` · ${T("at the table")} NS ${signed(scoreOf(NEED+(r[1]==="="?0:+r[1])))}`;
   return out; }

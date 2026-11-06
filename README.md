@@ -1,7 +1,7 @@
 # Hand viewer
 
 A bridge deal viewer in one static HTML file: the four hands around the table, the auction, the
-double-dummy makeable-tricks grid and par, and a play panel. The panel steps through a recorded or
+double-dummy makeable-tricks grid and minimax (par), and a play panel. The panel steps through a recorded or
 double-dummy line card by card, or lets you play the hand yourself, alone, against the double-dummy
 or blind. It also checks the table's play card by card, lists what every opening lead is worth and
 sets the deal as a "guess the lead" or "find the card" problem. A link can hold a whole set of deals

@@ -91,8 +91,6 @@ text:{
   "one card forward, along the line ahead or the double-dummy-optimal one":"на карту вперёд: по линии впереди или по линии ДД",
   "Open it on BBO":"Открыть на BBO",
   "Opening leads — what declarer makes":"Атаки — сколько берёт разыгрывающий",
-  "Par":"Пар",
-  "par":"пар",
   "Pass":"Пас",
   "Passed out":"Все пас",
   "pause":"пауза",
